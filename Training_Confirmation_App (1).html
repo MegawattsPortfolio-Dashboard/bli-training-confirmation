@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Training Confirmation — Skills Recovery Programme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase (compat SDK) — fill in firebaseConfig below to connect live, shared data -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --navy:#152A54; --navy-2:#1F3864; --ink:#0E1B33;
+    --paper:#F5F7FA; --card:#FFFFFF; --line:#E2E7EF;
+    --slate:#5B6472; --slate-2:#8C94A3;
+    --orange:#C55A11; --red:#C0392B; --green:#2E7D45; --amber:#C98A11;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:'Sora',sans-serif;margin:0;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  #loginOverlay{position:fixed;inset:0;background:linear-gradient(135deg,var(--ink),var(--navy-2));display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .login-card{background:#fff;border-radius:16px;padding:32px 36px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+  .login-card .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--slate-2);font-weight:700;margin-bottom:8px;}
+  .login-card h2{font-size:21px;color:var(--navy-2);margin-bottom:4px;}
+  .login-card p{font-size:13px;color:var(--slate);margin:6px 0 18px;line-height:1.5;}
+  .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .role-btn{padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:#fff;text-align:left;cursor:pointer;transition:.12s;}
+  .role-btn:hover{border-color:var(--navy-2);background:#F5F8FD;}
+  .role-btn .name{font-weight:700;font-size:14px;color:var(--ink);}
+  .role-btn .tag{font-size:10.5px;color:var(--slate-2);margin-top:2px;}
+  .role-btn.admin{grid-column:1/-1;background:var(--navy-2);border-color:var(--navy-2);}
+  .role-btn.admin .name, .role-btn.admin .tag{color:#fff;}
+  .login-note{font-size:11px;color:var(--slate-2);margin-top:16px;line-height:1.5;border-top:1px solid var(--line);padding-top:12px;}
+
+  #app{display:none;}
+  .topbar{background:linear-gradient(135deg,var(--ink),var(--navy-2));color:#fff;padding:20px 22px;}
+  .topbar-inner{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+  .eyebrow{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#9FB6E0;font-weight:600;}
+  .topbar h1{font-size:19px;font-weight:800;color:#fff;margin-top:3px;}
+  .who{font-size:13px;font-weight:700;color:#fff;}
+  .switch{font-size:11px;color:#9FB6E0;cursor:pointer;text-decoration:underline;margin-top:2px;text-align:right;}
+
+  .wrap{max-width:900px;margin:0 auto;padding:20px 18px 60px;}
+
+  .status-banner{border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:13px;display:flex;align-items:center;gap:12px;}
+  .status-banner.open{background:#E1F2E5;border:1px solid #A9DAB4;color:#1E5C34;}
+  .status-banner.closed{background:#EEF0F3;border:1px solid var(--line);color:var(--slate);}
+  .status-banner .countdown-num{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:18px;}
+
+  .day-card{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+  .day-head{padding:12px 16px;background:#F8FAFD;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+  .day-head .date{font-weight:700;font-size:14px;color:var(--navy-2);}
+  .day-head .wstatus{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;}
+  .wstatus.open{background:#E1F2E5;color:var(--green);}
+  .wstatus.upcoming{background:#EEF0F3;color:var(--slate);}
+  .wstatus.closed-missed{background:#FBE1DE;color:var(--red);}
+  .wstatus.closed-done{background:#E1EEF9;color:#1F6FB2;}
+
+  .sess-row{padding:14px 16px;border-bottom:1px solid var(--line);}
+  .sess-row:last-child{border-bottom:none;}
+  .sess-meta{font-size:10.5px;color:var(--slate-2);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:4px;}
+  .sess-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px;line-height:1.35;}
+  .sess-fac{font-size:12px;color:var(--slate);margin-bottom:10px;}
+  .confirm-row{display:flex;align-items:center;gap:10px;}
+  .btn-confirm{padding:9px 18px;border-radius:8px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:13px;cursor:pointer;}
+  .btn-confirm:hover{background:#256B3B;}
+  .btn-confirm:disabled{background:#D5DAE1;color:var(--slate-2);cursor:not-allowed;}
+  .confirmed-tag{font-size:12.5px;color:var(--green);font-weight:700;display:flex;align-items:center;gap:5px;}
+  .locked-tag{font-size:12px;color:var(--slate-2);font-style:italic;}
+  .missed-tag{font-size:12px;color:var(--red);font-weight:600;}
+
+  .empty-note{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--slate-2);font-size:13px;}
+  .footer-note{margin-top:18px;font-size:11px;color:var(--slate-2);text-align:center;line-height:1.5;}
+
+  /* Admin */
+  .admin-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--navy-2);}
+  .stat .l{font-size:10.5px;color:var(--slate);margin-top:2px;}
+  .admin-table{width:100%;border-collapse:collapse;font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .admin-table th{background:var(--navy-2);color:#fff;text-align:left;padding:8px 9px;font-size:10px;text-transform:uppercase;}
+  .admin-table td{padding:7px 9px;border-bottom:1px solid var(--line);}
+  .admin-table tr:last-child td{border-bottom:none;}
+  .override-box{background:#FDEFDD;border:1px solid #F0D19A;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#8A5F13;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .override-box button{padding:7px 12px;border-radius:7px;border:1px solid #F0D19A;background:#fff;font-size:11.5px;font-weight:700;cursor:pointer;color:#8A5F13;}
+  ::-webkit-scrollbar{height:8px;width:8px;}
+  ::-webkit-scrollbar-thumb{background:#D5DCE6;border-radius:8px;}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="eyebrow">Basscomm Nigeria · Operations Engineering Skills Recovery Programme</div>
+    <h2>Training Confirmation Portal</h2>
+    <p>Select your name. You can confirm each day's training only within 30 minutes after the day's last session ends.</p>
+    <div class="role-grid" id="roleGrid"></div>
+    <div class="login-note">This link is shared once and reused daily. Confirmations are shared/visible to programme admin. <span id="modeTag"></span></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div>
+        <div class="eyebrow">SPAR Training Confirmation</div>
+        <h1>My Training Schedule</h1>
+      </div>
+      <div style="text-align:right;">
+        <div class="who" id="whoami"></div>
+        <div class="switch" id="switchUser">Switch user</div>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div id="statusBanner"></div>
+    <div id="overrideBox"></div>
+    <div id="adminStats"></div>
+    <div id="scheduleList"></div>
+    <div class="footer-note">Confirmation windows open automatically 30 minutes after each day's final scheduled session and close after 30 minutes. Times shown are your device's local time.</div>
+  </div>
+</div>
+
+<script>
+// ---------- Schedule data (Operations Engineering Skills Recovery Programme, 13-24 Jul + Live Practical 27-31 Jul) ----------
+const ALL = ["Akinwunmi","Emmanuel","Jeremiah","Matthew","Stephen","Tosin","Vincent","Pamilerin"];
+const SESSIONS = [
+ {id:"S01",date:"2026-07-13",period:"Morning",time:"07:30–08:30",module:"Fire Hydrant System — Module 1: Fundamentals, Components & Design",facilitator:"Engr Ayodeji",trainees:["Akinwunmi","Emmanuel","Jeremiah","Pamilerin"]},
+ {id:"S02",date:"2026-07-13",period:"Afternoon",time:"15:30–16:30",module:"CCTV System — Module 1: Fundamentals, Components & System Architecture",facilitator:"Engr Toyib",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
+ {id:"S03",date:"2026-07-14",period:"Morning",time:"07:30–08:30",module:"Novec 1230 — Module 1: Principles, Components & Applications",facilitator:"Engr Moses",trainees:["Akinwunmi","Emmanuel","Jeremiah"]},
+ {id:"S04",date:"2026-07-14",period:"Afternoon",time:"15:30–16:30",module:"Fire Alarm System — Module 1: Fundamentals & System Architecture",facilitator:"Engr Moses",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
+ {id:"S05",date:"2026-07-15",period:"Morning",time:"07:30–08:30",module:"Electrical & Solar Systems — Module 1: Electrical Fundamentals, Solar Components & Design",facilitator:"Engr Gabriel",trainees:["Akinwunmi","Emmanuel","Jeremiah","Matthew","Tosin","Vincent"]},
+ {id:"S06",date:"2026-07-15",period:"Afternoon",time:"15:30–16:30",module:"Access Control System — Module 1: System Architecture, Hardware & Design",facilitator:"Engr Toyib",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
+ {id:"S07",date:"2026-07-16",period:"Morning",time:"07:30–08:30",module:"Public Address System — Module 1: System Design & Components",facilitator:"Engr Moses",trainees:["Akinwunmi","Emmanuel","Jeremiah"]},
+ {id:"S08",date:"2026-07-16",period:"Afternoon",time:"15:30–16:30",module:"Roller Shutter System — Module 1: Components, Operation & Safety",facilitator:"Engr Toyib",trainees:["Akinwunmi","Emmanuel","Jeremiah","Matthew","Stephen","Tosin","Vincent"]},
+ {id:"S09",date:"2026-07-17",period:"Morning",time:"07:30–08:30",module:"Sewage & Water Treatment — Module 1: Fundamentals & Process Overview",facilitator:"Engr Ayodeji",trainees:["Stephen","Pamilerin"]},
+ {id:"S10",date:"2026-07-17",period:"Afternoon",time:"15:30–16:30",module:"Technical Review, Case Studies & Knowledge Assessment",facilitator:"PMO / All Facilitators",trainees:[...ALL],review:true},
+ {id:"S11",date:"2026-07-20",period:"Morning",time:"07:30–08:30",module:"Fire Hydrant System — Module 2: Installation, Testing & Commissioning",facilitator:"Engr Ayodeji",trainees:["Akinwunmi","Emmanuel","Jeremiah","Pamilerin"]},
+ {id:"S12",date:"2026-07-20",period:"Afternoon",time:"15:30–16:30",module:"CCTV System — Module 2: Installation, Configuration & Troubleshooting",facilitator:"Engr Toyib",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
+ {id:"S13",date:"2026-07-21",period:"Morning",time:"07:30–08:30",module:"Novec 1230 — Module 2: Installation, Commissioning & Maintenance",facilitator:"Engr Moses",trainees:["Akinwunmi","Emmanuel","Jeremiah"]},
+ {id:"S14",date:"2026-07-21",period:"Afternoon",time:"15:30–16:30",module:"Fire Alarm System — Module 2: Installation, Programming & Troubleshooting",facilitator:"Engr Moses",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
+ {id:"S15",date:"2026-07-22",period:"Morning",time:"07:30–08:30",module:"Electrical & Solar Systems — Module 2: Installation, Commissioning & Fault Diagnosis",facilitator:"Engr Gabriel",trainees:["Akinwunmi","Emmanuel","Jeremiah","Matthew","Tosin","Vincent"]},
+ {id:"S16",date:"2026-07-22",period:"Afternoon",time:"15:30–16:30",module:"Access Control System — Module 2: Installation, Configuration & Maintenance",facilitator:"Engr Toyib",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
+ {id:"S17",date:"2026-07-23",period:"Morning",time:"07:30–08:30",module:"Public Address System — Module 2: Installation, Testing & Maintenance",facilitator:"Engr Moses",trainees:["Akinwunmi","Emmanuel","Jeremiah"]},
+ {id:"S18",date:"2026-07-23",period:"Afternoon",time:"15:30–16:30",module:"Roller Shutter System — Module 2: Installation, Troubleshooting & Preventive Maintenance",facilitator:"Engr Toyib",trainees:["Akinwunmi","Emmanuel","Jeremiah","Matthew","Stephen","Tosin","Vincent"]},
+ {id:"S19",date:"2026-07-24",period:"Morning",time:"07:30–08:30",module:"Sewage & Water Treatment — Module 2: Operations, Maintenance & Troubleshooting",facilitator:"Engr Ayodeji",trainees:["Stephen","Pamilerin"]},
+ {id:"S20",date:"2026-07-24",period:"Afternoon",time:"15:30–16:30",module:"Integrated Competency Assessment, Programme Review & Readiness for Live Deployment",facilitator:"PMO / All Facilitators",trainees:[...ALL],review:true},
+ {id:"P01",date:"2026-07-27",period:"Live Practical",time:"08:00–16:00*",module:"Live Installation & System Commissioning",facilitator:"Relevant Lead Facilitators",trainees:[...ALL]},
+ {id:"P02",date:"2026-07-28",period:"Live Practical",time:"08:00–16:00*",module:"Configuration & Functional Testing",facilitator:"Relevant Lead Facilitators",trainees:[...ALL]},
+ {id:"P03",date:"2026-07-29",period:"Live Practical",time:"08:00–16:00*",module:"Preventive & Corrective Maintenance",facilitator:"Relevant Lead Facilitators",trainees:[...ALL]},
+ {id:"P04",date:"2026-07-30",period:"Live Practical",time:"08:00–16:00*",module:"Troubleshooting & Fault Rectification",facilitator:"Relevant Lead Facilitators",trainees:[...ALL]},
+ {id:"P05",date:"2026-07-31",period:"Live Practical",time:"08:00–16:00*",module:"Final Competency Assessment, Individual Feedback & Sign-off",facilitator:"PMO, Head of Operations & Lead Facilitators",trainees:[...ALL]},
+];
+// Window anchor per date: classroom days anchor to 16:30 (end of Afternoon session); practical days anchor to 16:00 (assumed end of day activity)
+const CLASSROOM_DATES = new Set(SESSIONS.filter(s=>s.period!=="Live Practical").map(s=>s.date));
+function windowAnchor(date){
+  return CLASSROOM_DATES.has(date) ? "16:30" : "16:00";
+}
+function windowRange(date){
+  const anchor = windowAnchor(date);
+  const start = new Date(date+"T"+anchor+":00");
+  const end = new Date(start.getTime() + 30*60000);
+  return {start, end};
+}
+
+// ---------- Firebase config (fill in to go live — same project as BLIP works fine) ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyAPc6215vhmB6bC8MKrOKJqOSije3686C8",
+  authDomain: "bli-spar.firebaseapp.com",
+  projectId: "bli-spar",
+  storageBucket: "bli-spar.firebasestorage.app",
+  messagingSenderId: "414816018275",
+  appId: "1:414816018275:web:0d4d55c3bdf33c0b263d56"
+};
+let db = null;
+let LIVE = false;
+try {
+  if (firebaseConfig.apiKey) {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    LIVE = true;
+  }
+} catch (e) { console.warn("Firebase not configured — running on local demo data (confirmations will NOT sync between devices).", e); }
+
+const CONFIRM_STORE = "spar_confirm_v1";
+const ROLE_STORE = "spar_confirm_last_role";
+let confirmations = {}; // key: sessionId|trainee -> {confirmed:true, at: iso}
+let overrideOpen = false;
+let currentUser = null;
+
+async function loadConfirmations(){
+  if (LIVE) {
+    try {
+      const snap = await db.collection('sparConfirmations').get();
+      confirmations = {};
+      snap.forEach(doc => { confirmations[doc.id] = doc.data(); });
+      return;
+    } catch(e){ console.warn("Firestore read failed, falling back to local", e); }
+  }
+  try{ const cached = localStorage.getItem(CONFIRM_STORE); if(cached){ confirmations = JSON.parse(cached); return; } }catch(e){}
+  confirmations = {};
+}
+async function saveConfirmationEntry(k, val){
+  confirmations[k] = val;
+  if (LIVE) {
+    try { await db.collection('sparConfirmations').doc(k).set(val); return; }
+    catch(e){ console.warn("Firestore write failed, saving locally only", e); }
+  }
+  try{ localStorage.setItem(CONFIRM_STORE, JSON.stringify(confirmations)); }catch(e){}
+}
+async function loadOverride(){
+  if (LIVE) {
+    try {
+      const doc = await db.collection('sparConfig').doc('override').get();
+      overrideOpen = doc.exists && doc.data().open === true;
+      return;
+    } catch(e){ console.warn(e); }
+  }
+  try{ overrideOpen = localStorage.getItem("spar_confirm_override") === "true"; }catch(e){ overrideOpen = false; }
+}
+async function saveOverride(val){
+  overrideOpen = val;
+  if (LIVE) {
+    try { await db.collection('sparConfig').doc('override').set({open: val}); return; }
+    catch(e){ console.warn(e); }
+  }
+  try{ localStorage.setItem("spar_confirm_override", val ? "true":"false"); }catch(e){}
+}
+async function saveLastRole(role){ try{ localStorage.setItem(ROLE_STORE, role); }catch(e){} }
+
+function key(sessId, trainee){ return sessId+"|"+trainee; }
+function isConfirmed(sessId, trainee){ return !!(confirmations[key(sessId,trainee)] && confirmations[key(sessId,trainee)].confirmed); }
+
+function renderLogin(){
+  const modeTag = document.getElementById("modeTag");
+  if(modeTag){
+    modeTag.innerHTML = LIVE
+      ? '<b style="color:#2E7D45;">● Live — syncs across all devices.</b>'
+      : '<b style="color:#C0392B;">● Demo mode — Firebase not configured, confirmations will NOT sync between devices.</b>';
+  }
+  const grid = document.getElementById("roleGrid");
+  let html = `<div class="role-btn admin" data-role="Admin"><div class="name">Admin — Engr. Toyib</div><div class="tag">Programme overview</div></div>`;
+  ALL.forEach(n=>{ html += `<div class="role-btn" data-role="${n}"><div class="name">${n}</div><div class="tag">My schedule</div></div>`; });
+  grid.innerHTML = html;
+  grid.querySelectorAll(".role-btn").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      currentUser = btn.dataset.role;
+      await saveLastRole(currentUser);
+      document.getElementById("loginOverlay").style.display="none";
+      document.getElementById("app").style.display="block";
+      startApp();
+    });
+  });
+}
+document.getElementById("switchUser").addEventListener("click", ()=>{
+  document.getElementById("app").style.display="none";
+  document.getElementById("loginOverlay").style.display="flex";
+});
+
+function fmtTimeLeft(ms){
+  if(ms<0) ms=0;
+  const totalSec = Math.floor(ms/1000);
+  const m = Math.floor(totalSec/60), s = totalSec%60;
+  return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+let tickHandle = null;
+
+function sessionWindowState(sess){
+  // returns {state: 'upcoming'|'open'|'missed'|'confirmed-locked', start, end}
+  const {start,end} = windowRange(sess.date);
+  const now = new Date();
+  if(overrideOpen) return {state:"open", start, end};
+  if(now < start) return {state:"upcoming", start, end};
+  if(now >= start && now <= end) return {state:"open", start, end};
+  return {state:"closed", start, end};
+}
+
+function renderStatusBanner(){
+  const banner = document.getElementById("statusBanner");
+  const today = todayStr();
+  const todaysClassroom = SESSIONS.find(s=>s.date===today);
+  if(!todaysClassroom){
+    banner.innerHTML = `<div class="status-banner closed">No training session scheduled for today (${today}). Check back on the next scheduled day.</div>`;
+    return;
+  }
+  const {state, end} = sessionWindowState(todaysClassroom);
+  if(state==="open"){
+    const msLeft = end - new Date();
+    banner.innerHTML = `<div class="status-banner open">✅ Confirmation window is <b>OPEN</b> — closes in <span class="countdown-num" id="cd">${fmtTimeLeft(msLeft)}</span></div>`;
+  } else if(state==="upcoming"){
+    banner.innerHTML = `<div class="status-banner closed">⏳ Today's confirmation window opens at ${windowAnchor(today)} (30 minutes after the day's final session).</div>`;
+  } else {
+    banner.innerHTML = `<div class="status-banner closed">🔒 Today's confirmation window has closed.</div>`;
+  }
+}
+
+function statusLabel(sess, trainee){
+  const {state} = sessionWindowState(sess);
+  const confirmed = isConfirmed(sess.id, trainee);
+  if(confirmed) return {cls:"closed-done", text:"Confirmed"};
+  if(state==="open") return {cls:"open", text:"Window open"};
+  if(state==="upcoming") return {cls:"upcoming", text:"Upcoming"};
+  return {cls:"closed-missed", text:"Window closed"};
+}
+
+function renderMySchedule(){
+  const root = document.getElementById("scheduleList");
+  const mine = SESSIONS.filter(s=>s.trainees.includes(currentUser));
+  if(!mine.length){ root.innerHTML = `<div class="empty-note">No sessions found for you.</div>`; return; }
+
+  // group by date
+  const byDate = {};
+  mine.forEach(s=>{ (byDate[s.date]=byDate[s.date]||[]).push(s); });
+  const dates = Object.keys(byDate).sort();
+
+  root.innerHTML = dates.map(date=>{
+    const sessions = byDate[date];
+    const d = new Date(date+"T00:00:00");
+    const dateLabel = d.toLocaleDateString('en-US',{weekday:'long', day:'numeric', month:'long'});
+    const repSess = sessions[0];
+    const lbl = statusLabel(repSess, currentUser);
+    const sessRows = sessions.map(s=>{
+      const {state} = sessionWindowState(s);
+      const confirmed = isConfirmed(s.id, currentUser);
+      let action;
+      if(confirmed){
+        const at = confirmations[key(s.id,currentUser)].at;
+        const atTime = new Date(at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+        action = `<span class="confirmed-tag">✓ Confirmed at ${atTime}</span>`;
+      } else if(state==="open"){
+        action = `<button class="btn-confirm" data-sess="${s.id}">Confirm I completed this training</button>`;
+      } else if(state==="upcoming"){
+        action = `<span class="locked-tag">Confirmation opens after this session ends</span>`;
+      } else {
+        action = `<span class="missed-tag">Window closed — not confirmed</span>`;
+      }
+      return `<div class="sess-row">
+        <div class="sess-meta">${s.period} · ${s.time}</div>
+        <div class="sess-title">${s.module}</div>
+        <div class="sess-fac">Facilitator: ${s.facilitator}</div>
+        <div class="confirm-row">${action}</div>
+      </div>`;
+    }).join("");
+    return `<div class="day-card">
+      <div class="day-head"><span class="date">${dateLabel}</span><span class="wstatus ${lbl.cls}">${lbl.text}</span></div>
+      ${sessRows}
+    </div>`;
+  }).join("");
+
+  root.querySelectorAll(".btn-confirm").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const sid = btn.dataset.sess;
+      const k = key(sid, currentUser);
+      btn.disabled = true; btn.textContent = "Saving…";
+      await saveConfirmationEntry(k, {confirmed:true, at:new Date().toISOString()});
+      renderAll();
+    });
+  });
+}
+
+function renderAdmin(){
+  const statsRoot = document.getElementById("adminStats");
+  const overrideRoot = document.getElementById("overrideBox");
+  const listRoot = document.getElementById("scheduleList");
+
+  overrideRoot.innerHTML = `<div class="override-box">
+    <span><b>Manual override:</b> ${overrideOpen ? "All confirmation windows are FORCED OPEN." : "Windows follow the normal 30-minute schedule."}</span>
+    <button id="toggleOverride">${overrideOpen ? "Turn off override" : "Force all windows open"}</button>
+  </div>`;
+  document.getElementById("toggleOverride").addEventListener("click", async ()=>{
+    await saveOverride(!overrideOpen);
+    renderAll();
+  });
+
+  const today = todayStr();
+  const todaysSessions = SESSIONS.filter(s=>s.date===today);
+  let expectedToday = 0, confirmedToday = 0;
+  todaysSessions.forEach(s=>{ s.trainees.forEach(t=>{ expectedToday++; if(isConfirmed(s.id,t)) confirmedToday++; }); });
+
+  let totalExpected=0, totalConfirmed=0;
+  SESSIONS.forEach(s=>{ s.trainees.forEach(t=>{ totalExpected++; if(isConfirmed(s.id,t)) totalConfirmed++; }); });
+
+  statsRoot.innerHTML = `<div class="admin-stats">
+    <div class="stat"><div class="v">${confirmedToday}/${expectedToday}</div><div class="l">Confirmed today</div></div>
+    <div class="stat"><div class="v">${totalConfirmed}/${totalExpected}</div><div class="l">Confirmed overall</div></div>
+    <div class="stat"><div class="v">${overrideOpen?"ON":"OFF"}</div><div class="l">Manual override</div></div>
+  </div>`;
+
+  // Table: today's sessions, per trainee confirmation status
+  let tableHtml = `<table class="admin-table"><thead><tr><th>Session</th><th>Facilitator</th><th>Trainee</th><th>Status</th></tr></thead><tbody>`;
+  const sessionsToShow = todaysSessions.length ? todaysSessions : SESSIONS.slice(0,2);
+  sessionsToShow.forEach(s=>{
+    s.trainees.forEach(t=>{
+      const lbl = statusLabel(s, t);
+      const color = lbl.cls==="closed-done" ? "var(--green)" : lbl.cls==="closed-missed" ? "var(--red)" : lbl.cls==="open" ? "var(--amber)" : "var(--slate-2)";
+      tableHtml += `<tr><td>${s.period} — ${s.module.slice(0,40)}${s.module.length>40?'…':''}</td><td>${s.facilitator}</td><td>${t}</td><td style="color:${color};font-weight:600;">${lbl.text}</td></tr>`;
+    });
+  });
+  tableHtml += `</tbody></table>`;
+  listRoot.innerHTML = `<h3 style="font-size:14px;color:var(--navy-2);margin:18px 0 10px;">${todaysSessions.length? "Today's Sessions ("+today+")" : "Next Scheduled Sessions"}</h3>` + tableHtml;
+}
+
+function renderAll(){
+  document.getElementById("whoami").textContent = currentUser==="Admin" ? "Admin — Engr. Toyib" : currentUser;
+  if(currentUser==="Admin"){
+    document.getElementById("statusBanner").innerHTML="";
+    renderAdmin();
+  } else {
+    document.getElementById("adminStats").innerHTML="";
+    document.getElementById("overrideBox").innerHTML="";
+    renderStatusBanner();
+    renderMySchedule();
+  }
+}
+
+async function startApp(){
+  await loadConfirmations();
+  await loadOverride();
+  renderAll();
+  if(tickHandle) clearInterval(tickHandle);
+  tickHandle = setInterval(()=>{
+    if(currentUser && currentUser!=="Admin"){
+      const today = todayStr();
+      const todaysSess = SESSIONS.find(s=>s.date===today);
+      if(todaysSess){
+        const {state,end} = sessionWindowState(todaysSess);
+        if(state==="open"){
+          const cd = document.getElementById("cd");
+          if(cd) cd.textContent = fmtTimeLeft(end-new Date());
+        }
+      }
+    }
+  }, 1000);
+  // periodic full refresh in case window opens/closes while page is left open
+  setInterval(renderAll, 15000);
+}
+
+(function init(){ renderLogin(); })();
+</script>
+</body>
+</html>
