@@ -73,6 +73,11 @@
   .confirmed-tag{font-size:12.5px;color:var(--green);font-weight:700;display:flex;align-items:center;gap:5px;}
   .locked-tag{font-size:12px;color:var(--slate-2);font-style:italic;}
   .missed-tag{font-size:12px;color:var(--red);font-weight:600;}
+  .upload-block{width:100%;}
+  .upload-hint{font-size:11.5px;color:var(--slate);background:#F8FAFD;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.5;}
+  .shot-input{font-size:12px;margin-bottom:8px;display:block;}
+  .shot-preview{margin-bottom:8px;}
+  .shot-thumb{max-width:180px;max-height:120px;border-radius:8px;border:1px solid var(--line);display:block;}
 
   .empty-note{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--slate-2);font-size:13px;}
   .footer-note{margin-top:18px;font-size:11px;color:var(--slate-2);text-align:center;line-height:1.5;}
@@ -242,6 +247,51 @@ async function saveOverride(val){
 }
 async function saveLastRole(role){ try{ localStorage.setItem(ROLE_STORE, role); }catch(e){} }
 
+function fileToDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+
+// Resize + compress an image client-side so it fits comfortably inside Firestore's 1MB document limit.
+function compressImage(file, maxDim=1000, maxBytes=480*1024){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = ()=>{
+        let width = img.width, height = img.height;
+        if(width > height && width > maxDim){ height = Math.round(height*maxDim/width); width = maxDim; }
+        else if(height >= width && height > maxDim){ width = Math.round(width*maxDim/height); height = maxDim; }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        const approxBytes = du => Math.round((du.length - "data:image/jpeg;base64,".length) * 3/4);
+        let quality = 0.78;
+        let dataUrl = canvas.toDataURL("image/jpeg", quality);
+        let tries = 0;
+        while(approxBytes(dataUrl) > maxBytes && tries < 10){
+          if(quality > 0.35){ quality -= 0.1; }
+          else { width = Math.round(width*0.85); height = Math.round(height*0.85); canvas.width=width; canvas.height=height; ctx.drawImage(img,0,0,width,height); }
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+          tries++;
+        }
+        resolve(dataUrl);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadScreenshot(sessId, trainee, file){
+  const MAX_RAW_MB = 15;
+  if(file.size > MAX_RAW_MB*1024*1024){ alert(`File too large (max ${MAX_RAW_MB}MB). Please use a smaller screenshot.`); return null; }
+  if(!file.type.startsWith("image/")){ alert("Please upload an image file (screenshot)."); return null; }
+  try{
+    return await compressImage(file);
+  }catch(e){ console.warn("Image processing failed", e); alert("Could not process that image — please try a different screenshot."); return null; }
+}
+
 function key(sessId, trainee){ return sessId+"|"+trainee; }
 function isConfirmed(sessId, trainee){ return !!(confirmations[key(sessId,trainee)] && confirmations[key(sessId,trainee)].confirmed); }
 
@@ -319,6 +369,8 @@ function statusLabel(sess, trainee){
   return {cls:"closed-missed", text:"Window closed"};
 }
 
+let pendingFiles = {}; // sessionId -> File object, held in memory until confirmed
+
 function renderMySchedule(){
   const root = document.getElementById("scheduleList");
   const mine = SESSIONS.filter(s=>s.trainees.includes(currentUser));
@@ -340,11 +392,18 @@ function renderMySchedule(){
       const confirmed = isConfirmed(s.id, currentUser);
       let action;
       if(confirmed){
-        const at = confirmations[key(s.id,currentUser)].at;
-        const atTime = new Date(at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-        action = `<span class="confirmed-tag">✓ Confirmed at ${atTime}</span>`;
+        const rec = confirmations[key(s.id,currentUser)];
+        const atTime = new Date(rec.at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+        const viewLink = rec.screenshot ? `<span class="view-shot" data-sess="${s.id}" style="margin-left:8px;color:#1F6FB2;text-decoration:underline;cursor:pointer;font-weight:600;">View screenshot</span>` : "";
+        action = `<span class="confirmed-tag">✓ Confirmed at ${atTime}</span>${viewLink}`;
       } else if(state==="open"){
-        action = `<button class="btn-confirm" data-sess="${s.id}">Confirm I completed this training</button>`;
+        action = `
+          <div class="upload-block" data-sess="${s.id}">
+            <div class="upload-hint">📸 Attach a screenshot of the Zoom interface showing <b>your name</b> and the <b>time stamp</b> from your device before confirming. Double-check the name on screen matches "<b>${currentUser}</b>".</div>
+            <input type="file" accept="image/*" class="shot-input" data-sess="${s.id}">
+            <div class="shot-preview" data-sess="${s.id}"></div>
+            <button class="btn-confirm" data-sess="${s.id}" disabled>Confirm I completed this training</button>
+          </div>`;
       } else if(state==="upcoming"){
         action = `<span class="locked-tag">Confirmation opens after this session ends</span>`;
       } else {
@@ -363,13 +422,40 @@ function renderMySchedule(){
     </div>`;
   }).join("");
 
+  root.querySelectorAll(".shot-input").forEach(input=>{
+    input.addEventListener("change", e=>{
+      const sid = input.dataset.sess;
+      const file = e.target.files[0];
+      const previewEl = root.querySelector(`.shot-preview[data-sess="${sid}"]`);
+      const btn = root.querySelector(`.btn-confirm[data-sess="${sid}"]`);
+      if(!file){ pendingFiles[sid] = null; if(btn) btn.disabled = true; if(previewEl) previewEl.innerHTML=""; return; }
+      pendingFiles[sid] = file;
+      const url = URL.createObjectURL(file);
+      if(previewEl) previewEl.innerHTML = `<img src="${url}" class="shot-thumb">`;
+      if(btn) btn.disabled = false;
+    });
+  });
+
   root.querySelectorAll(".btn-confirm").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       const sid = btn.dataset.sess;
+      const file = pendingFiles[sid];
+      if(!file){ alert("Please attach a screenshot first."); return; }
+      btn.disabled = true; btn.textContent = "Processing…";
+      const screenshot = await uploadScreenshot(sid, currentUser, file);
+      if(!screenshot){ btn.disabled = false; btn.textContent = "Confirm I completed this training"; return; }
       const k = key(sid, currentUser);
-      btn.disabled = true; btn.textContent = "Saving…";
-      await saveConfirmationEntry(k, {confirmed:true, at:new Date().toISOString()});
+      await saveConfirmationEntry(k, {confirmed:true, at:new Date().toISOString(), screenshot});
+      delete pendingFiles[sid];
       renderAll();
+    });
+  });
+
+  root.querySelectorAll(".view-shot").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const sid = el.dataset.sess;
+      const rec = confirmations[key(sid,currentUser)];
+      if(rec && rec.screenshot){ window.open(rec.screenshot, "_blank"); }
     });
   });
 }
@@ -422,17 +508,22 @@ function renderAdmin(){
     </div>`;
 
   // Table: today's sessions, per trainee confirmation status
-  let tableHtml = `<table class="admin-table"><thead><tr><th>Session</th><th>Facilitator</th><th>Trainee</th><th>Status</th></tr></thead><tbody>`;
+  let tableHtml = `<table class="admin-table"><thead><tr><th>Session</th><th>Facilitator</th><th>Trainee</th><th>Status</th><th>Evidence</th></tr></thead><tbody>`;
   const sessionsToShow = todaysSessions.length ? todaysSessions : SESSIONS.slice(0,2);
   sessionsToShow.forEach(s=>{
     s.trainees.forEach(t=>{
       const lbl = statusLabel(s, t);
       const color = lbl.cls==="closed-done" ? "var(--green)" : lbl.cls==="closed-missed" ? "var(--red)" : lbl.cls==="open" ? "var(--amber)" : "var(--slate-2)";
-      tableHtml += `<tr><td>${s.period} — ${s.module.slice(0,40)}${s.module.length>40?'…':''}</td><td>${s.facilitator}</td><td>${t}</td><td style="color:${color};font-weight:600;">${lbl.text}</td></tr>`;
+      const rec = confirmations[key(s.id,t)];
+      const evidence = (rec && rec.screenshot) ? `<span class="admin-view-shot" data-url="${rec.screenshot.replace(/"/g,'&quot;')}" style="color:#1F6FB2;text-decoration:underline;cursor:pointer;font-weight:600;">View</span>` : (lbl.cls==="closed-done" ? "—" : "");
+      tableHtml += `<tr><td>${s.period} — ${s.module.slice(0,40)}${s.module.length>40?'…':''}</td><td>${s.facilitator}</td><td>${t}</td><td style="color:${color};font-weight:600;">${lbl.text}</td><td>${evidence}</td></tr>`;
     });
   });
   tableHtml += `</tbody></table>`;
   listRoot.innerHTML = `<h3 style="font-size:14px;color:var(--navy-2);margin:18px 0 10px;">${todaysSessions.length? "Today's Sessions ("+today+")" : "Next Scheduled Sessions"}</h3>` + tableHtml;
+  listRoot.querySelectorAll(".admin-view-shot").forEach(el=>{
+    el.addEventListener("click", ()=>{ window.open(el.dataset.url, "_blank"); });
+  });
 }
 
 function renderAll(){
