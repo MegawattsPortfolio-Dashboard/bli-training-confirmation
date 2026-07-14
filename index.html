@@ -10,6 +10,7 @@
 <!-- Firebase (compat SDK) — fill in firebaseConfig below to connect live, shared data -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
 <style>
   :root{
@@ -111,9 +112,29 @@
   <div class="login-card">
     <div class="eyebrow">Basscomm Nigeria · Operations Engineering Skills Recovery Programme</div>
     <h2>Training Confirmation Portal</h2>
-    <p>Select your name. You can confirm each day's training only within 30 minutes after the day's last session ends.</p>
-    <div class="role-grid" id="roleGrid"></div>
-    <div class="login-note">This link is shared once and reused daily. Confirmations are shared/visible to programme admin. <span id="modeTag"></span></div>
+
+    <div id="emailStage">
+      <p>Enter the email address registered for you on the training roster. We'll send you a one-time sign-in link — no password needed.</p>
+      <input type="email" id="emailInput" placeholder="you@example.com" style="width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;font-family:'Inter';margin-bottom:10px;box-sizing:border-box;">
+      <button id="sendLinkBtn" style="width:100%;padding:11px;border-radius:8px;border:none;background:var(--navy-2);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Send me a sign-in link</button>
+      <div id="emailMsg" style="font-size:12px;margin-top:10px;line-height:1.5;"></div>
+    </div>
+
+    <div id="sentStage" style="display:none;text-align:center;padding:10px 0;">
+      <div style="font-size:32px;margin-bottom:8px;">📧</div>
+      <p style="font-weight:700;color:var(--navy-2);margin-bottom:4px;" id="sentToLabel"></p>
+      <p style="font-size:12.5px;color:var(--slate);">Check your inbox and click the link to sign in. You can close this tab.</p>
+      <div class="switch" id="backToEmail" style="margin-top:14px;">Use a different email</div>
+    </div>
+
+    <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px;">
+      <div class="role-btn admin" id="adminLoginBtn" style="cursor:pointer;">
+        <div class="name">Admin — Engr. Toyib Abdulsalaam</div>
+        <div class="tag">Programme overview (no email required)</div>
+      </div>
+    </div>
+
+    <div class="login-note">Confirmations are shared/visible to programme admin. <span id="modeTag"></span></div>
   </div>
 </div>
 
@@ -192,14 +213,38 @@ const firebaseConfig = {
   appId: "1:414816018275:web:0d4d55c3bdf33c0b263d56"
 };
 let db = null;
+let auth = null;
 let LIVE = false;
 try {
   if (firebaseConfig.apiKey) {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
+    auth = firebase.auth();
     LIVE = true;
   }
 } catch (e) { console.warn("Firebase not configured — running on local demo data (confirmations will NOT sync between devices).", e); }
+
+// ---------- Trainee roster: EDIT THESE EMAILS before going live ----------
+// Each trainee signs in with a magic link sent to their email below.
+// Replace every "REPLACE_..." address with their real email, then redeploy.
+const ROSTER = [
+  {name:"Akinwunmi", email:"REPLACE_akinwunmi@example.com"},
+  {name:"Emmanuel",  email:"REPLACE_emmanuel@example.com"},
+  {name:"Jeremiah",  email:"REPLACE_jeremiah@example.com"},
+  {name:"Matthew",   email:"REPLACE_matthew@example.com"},
+  {name:"Stephen",   email:"REPLACE_stephen@example.com"},
+  {name:"Tosin",     email:"REPLACE_tosin@example.com"},
+  {name:"Vincent",   email:"REPLACE_vincent@example.com"},
+  {name:"Pamilerin", email:"REPLACE_pamilerin@example.com"},
+];
+function nameForEmail(email){
+  const hit = ROSTER.find(r => r.email.toLowerCase() === email.toLowerCase());
+  return hit ? hit.name : null;
+}
+function emailForName(name){
+  const hit = ROSTER.find(r => r.name === name);
+  return hit ? hit.email : null;
+}
 
 const CONFIRM_STORE = "spar_confirm_v1";
 const ROLE_STORE = "spar_confirm_last_role";
@@ -295,31 +340,97 @@ async function uploadScreenshot(sessId, trainee, file){
 function key(sessId, trainee){ return sessId+"|"+trainee; }
 function isConfirmed(sessId, trainee){ return !!(confirmations[key(sessId,trainee)] && confirmations[key(sessId,trainee)].confirmed); }
 
+function enterApp(){
+  document.getElementById("loginOverlay").style.display="none";
+  document.getElementById("app").style.display="block";
+  startApp();
+}
+
 function renderLogin(){
   const modeTag = document.getElementById("modeTag");
   if(modeTag){
     modeTag.innerHTML = LIVE
       ? '<b style="color:#2E7D45;">● Live — syncs across all devices.</b>'
-      : '<b style="color:#C0392B;">● Demo mode — Firebase not configured, confirmations will NOT sync between devices.</b>';
+      : '<b style="color:#C0392B;">● Demo mode — Firebase not configured. Email sign-in requires Firebase.</b>';
   }
-  const grid = document.getElementById("roleGrid");
-  let html = `<div class="role-btn admin" data-role="Admin"><div class="name">Admin — Engr. Toyib</div><div class="tag">Programme overview</div></div>`;
-  ALL.forEach(n=>{ html += `<div class="role-btn" data-role="${n}"><div class="name">${n}</div><div class="tag">My schedule</div></div>`; });
-  grid.innerHTML = html;
-  grid.querySelectorAll(".role-btn").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      currentUser = btn.dataset.role;
-      await saveLastRole(currentUser);
-      document.getElementById("loginOverlay").style.display="none";
-      document.getElementById("app").style.display="block";
-      startApp();
-    });
+
+  document.getElementById("adminLoginBtn").addEventListener("click", async ()=>{
+    currentUser = "Admin";
+    await saveLastRole(currentUser);
+    enterApp();
+  });
+
+  document.getElementById("sendLinkBtn").addEventListener("click", async ()=>{
+    const msgEl = document.getElementById("emailMsg");
+    const emailInput = document.getElementById("emailInput");
+    const email = emailInput.value.trim();
+    if(!email || !email.includes("@")){ msgEl.innerHTML = '<span style="color:var(--red);">Enter a valid email address.</span>'; return; }
+    const name = nameForEmail(email);
+    if(!name){ msgEl.innerHTML = '<span style="color:var(--red);">This email is not on the training roster. Contact the BLI Lead if this is a mistake.</span>'; return; }
+    if(!LIVE){ msgEl.innerHTML = '<span style="color:var(--red);">Email sign-in requires Firebase to be configured — currently running in demo mode.</span>'; return; }
+
+    const btn = document.getElementById("sendLinkBtn");
+    btn.disabled = true; btn.textContent = "Sending…";
+    try{
+      const actionCodeSettings = { url: window.location.href.split("?")[0], handleCodeInApp: true };
+      await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+      localStorage.setItem("spar_email_for_signin", email);
+      document.getElementById("emailStage").style.display = "none";
+      document.getElementById("sentStage").style.display = "block";
+      document.getElementById("sentToLabel").textContent = "Link sent to " + email;
+    }catch(e){
+      console.warn(e);
+      msgEl.innerHTML = '<span style="color:var(--red);">Could not send the link — check the console or try again shortly.</span>';
+      btn.disabled = false; btn.textContent = "Send me a sign-in link";
+    }
+  });
+
+  document.getElementById("backToEmail").addEventListener("click", ()=>{
+    document.getElementById("sentStage").style.display = "none";
+    document.getElementById("emailStage").style.display = "block";
+    document.getElementById("sendLinkBtn").disabled = false;
+    document.getElementById("sendLinkBtn").textContent = "Send me a sign-in link";
   });
 }
-document.getElementById("switchUser").addEventListener("click", ()=>{
+
+document.getElementById("switchUser").addEventListener("click", async ()=>{
+  if(LIVE && auth && auth.currentUser){ try{ await auth.signOut(); }catch(e){} }
   document.getElementById("app").style.display="none";
+  document.getElementById("emailStage").style.display="block";
+  document.getElementById("sentStage").style.display="none";
+  document.getElementById("emailInput").value="";
+  document.getElementById("emailMsg").innerHTML="";
   document.getElementById("loginOverlay").style.display="flex";
 });
+
+// ---------- Handle arriving via a magic-link click ----------
+async function tryMagicLinkSignIn(){
+  if(!LIVE || !auth) return false;
+  if(!auth.isSignInWithEmailLink(window.location.href)) return false;
+
+  let email = localStorage.getItem("spar_email_for_signin");
+  if(!email){
+    email = window.prompt("Confirm the email address you used to request this link:");
+  }
+  if(!email) return false;
+
+  try{
+    await auth.signInWithEmailLink(email, window.location.href);
+    localStorage.removeItem("spar_email_for_signin");
+    const name = nameForEmail(email);
+    if(!name){ alert("Signed in, but this email is not on the training roster. Contact the BLI Lead."); return false; }
+    currentUser = name;
+    await saveLastRole(currentUser);
+    // clean the sign-in params out of the URL
+    window.history.replaceState({}, document.title, window.location.href.split("?")[0]);
+    return true;
+  }catch(e){
+    console.warn("Magic link sign-in failed", e);
+    alert("This sign-in link is invalid or has expired. Please request a new one.");
+    window.history.replaceState({}, document.title, window.location.href.split("?")[0]);
+    return false;
+  }
+}
 
 function fmtTimeLeft(ms){
   if(ms<0) ms=0;
@@ -562,7 +673,11 @@ async function startApp(){
   setInterval(renderAll, 15000);
 }
 
-(function init(){ renderLogin(); })();
+(async function init(){
+  renderLogin();
+  const signedIn = await tryMagicLinkSignIn();
+  if(signedIn){ enterApp(); }
+})();
 </script>
 </body>
 </html>
