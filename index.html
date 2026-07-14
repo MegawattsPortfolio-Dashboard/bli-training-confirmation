@@ -114,7 +114,7 @@
     <h2>Training Confirmation Portal</h2>
 
     <div id="emailStage">
-      <p>Enter the email address registered for you on the training roster. We'll send you a one-time sign-in link — no password needed.</p>
+      <p>Enter your email address. We'll send you a one-time sign-in link — no password needed. First-time sign-in, you'll pick your name once.</p>
       <input type="email" id="emailInput" placeholder="you@example.com" style="width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;font-family:'Inter';margin-bottom:10px;box-sizing:border-box;">
       <button id="sendLinkBtn" style="width:100%;padding:11px;border-radius:8px;border:none;background:var(--navy-2);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Send me a sign-in link</button>
       <div id="emailMsg" style="font-size:12px;margin-top:10px;line-height:1.5;"></div>
@@ -127,11 +127,19 @@
       <div class="switch" id="backToEmail" style="margin-top:14px;">Use a different email</div>
     </div>
 
-    <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px;">
-      <div class="role-btn admin" id="adminLoginBtn" style="cursor:pointer;">
-        <div class="name">Admin — Engr. Toyib Abdulsalaam</div>
-        <div class="tag">Programme overview (no email required)</div>
-      </div>
+    <div id="nameStage" style="display:none;">
+      <p style="font-weight:700;color:var(--navy-2);margin-bottom:6px;">Which name is yours?</p>
+      <p style="font-size:12.5px;color:var(--slate);margin-bottom:12px;">First-time sign-in — pick your name once. It will be locked to this email for all future logins.</p>
+      <div class="role-grid" id="nameGrid"></div>
+      <div id="nameMsg" style="font-size:12px;margin-top:10px;line-height:1.5;"></div>
+    </div>
+
+    <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;">
+      <p style="font-weight:700;font-size:13px;color:var(--navy-2);margin-bottom:8px;">Admin Sign-In</p>
+      <input type="email" id="adminEmailInput" placeholder="Admin email" style="width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px;font-family:'Inter';margin-bottom:8px;box-sizing:border-box;">
+      <input type="password" id="adminPasswordInput" placeholder="Password" style="width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px;font-family:'Inter';margin-bottom:8px;box-sizing:border-box;">
+      <button id="adminSignInBtn" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--navy-2);background:#fff;color:var(--navy-2);font-weight:700;font-size:12.5px;cursor:pointer;">Sign in as Admin</button>
+      <div id="adminMsg" style="font-size:11.5px;margin-top:8px;line-height:1.5;"></div>
     </div>
 
     <div class="login-note">Confirmations are shared/visible to programme admin. <span id="modeTag"></span></div>
@@ -156,6 +164,7 @@
     <div id="overrideBox"></div>
     <div id="adminStats"></div>
     <div id="traineeProgress"></div>
+    <div id="identityPanel"></div>
     <div id="scheduleList"></div>
     <div class="footer-note">Confirmation windows open automatically 30 minutes after each day's final scheduled session and close after 30 minutes. Times shown are your device's local time.</div>
   </div>
@@ -164,6 +173,9 @@
 <script>
 // ---------- Schedule data (Operations Engineering Skills Recovery Programme, 13-24 Jul + Live Practical 27-31 Jul) ----------
 const ALL = ["Akinwunmi","Emmanuel","Jeremiah","Matthew","Stephen","Tosin","Vincent","Pamilerin"];
+
+// ---------- Admin access: ONLY this email can reach the Admin dashboard. EDIT THIS before deploying. ----------
+const ADMIN_EMAIL = "toyibs@basscommgroup.com";
 const SESSIONS = [
  {id:"S01",date:"2026-07-13",period:"Morning",time:"07:30–08:30",module:"Fire Hydrant System — Module 1: Fundamentals, Components & Design",facilitator:"Engr Ayodeji",trainees:["Akinwunmi","Emmanuel","Jeremiah","Pamilerin"]},
  {id:"S02",date:"2026-07-13",period:"Afternoon",time:"15:30–16:30",module:"CCTV System — Module 1: Fundamentals, Components & System Architecture",facilitator:"Engr Toyib",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
@@ -224,27 +236,39 @@ try {
   }
 } catch (e) { console.warn("Firebase not configured — running on local demo data (confirmations will NOT sync between devices).", e); }
 
-// ---------- Trainee roster: EDIT THESE EMAILS before going live ----------
-// Each trainee signs in with a magic link sent to their email below.
-// Replace every "REPLACE_..." address with their real email, then redeploy.
-const ROSTER = [
-  {name:"Akinwunmi", email:"REPLACE_akinwunmi@example.com"},
-  {name:"Emmanuel",  email:"REPLACE_emmanuel@example.com"},
-  {name:"Jeremiah",  email:"REPLACE_jeremiah@example.com"},
-  {name:"Matthew",   email:"REPLACE_matthew@example.com"},
-  {name:"Stephen",   email:"REPLACE_stephen@example.com"},
-  {name:"Tosin",     email:"REPLACE_tosin@example.com"},
-  {name:"Vincent",   email:"REPLACE_vincent@example.com"},
-  {name:"Pamilerin", email:"REPLACE_pamilerin@example.com"},
-];
-function nameForEmail(email){
-  const hit = ROSTER.find(r => r.email.toLowerCase() === email.toLowerCase());
-  return hit ? hit.name : null;
+// ---------- Identity: any email can request a link; first sign-in picks a name, which then locks to that email ----------
+async function loadNameForEmail(email){
+  email = email.toLowerCase();
+  if (LIVE) {
+    try{ const doc = await db.collection('sparUsers').doc(email).get(); return doc.exists ? doc.data().name : null; }
+    catch(e){ console.warn(e); return null; }
+  }
+  try{ const map = JSON.parse(localStorage.getItem("spar_email_name_map")||"{}"); return map[email] || null; }catch(e){ return null; }
 }
-function emailForName(name){
-  const hit = ROSTER.find(r => r.name === name);
-  return hit ? hit.email : null;
+async function claimName(email, name){
+  email = email.toLowerCase();
+  if (LIVE) {
+    try{
+      const claimRef = db.collection('sparNameClaims').doc(name);
+      const claimDoc = await claimRef.get();
+      if(claimDoc.exists && claimDoc.data().email !== email) return {ok:false, reason:"taken"};
+      await claimRef.set({email});
+      await db.collection('sparUsers').doc(email).set({name, claimedAt:new Date().toISOString()});
+      return {ok:true};
+    }catch(e){ console.warn(e); return {ok:false, reason:"error"}; }
+  }
+  try{
+    const claims = JSON.parse(localStorage.getItem("spar_name_claims")||"{}");
+    if(claims[name] && claims[name] !== email) return {ok:false, reason:"taken"};
+    claims[name] = email;
+    localStorage.setItem("spar_name_claims", JSON.stringify(claims));
+    const map = JSON.parse(localStorage.getItem("spar_email_name_map")||"{}");
+    map[email] = name;
+    localStorage.setItem("spar_email_name_map", JSON.stringify(map));
+    return {ok:true};
+  }catch(e){ return {ok:false, reason:"error"}; }
 }
+let pendingAuthEmail = null;
 
 const CONFIRM_STORE = "spar_confirm_v1";
 const ROLE_STORE = "spar_confirm_last_role";
@@ -346,6 +370,33 @@ function enterApp(){
   startApp();
 }
 
+function showNameStage(){
+  document.getElementById("emailStage").style.display = "none";
+  document.getElementById("sentStage").style.display = "none";
+  document.getElementById("nameStage").style.display = "block";
+  const grid = document.getElementById("nameGrid");
+  grid.innerHTML = ALL.map(n => `<div class="role-btn" data-name="${n}"><div class="name">${n}</div><div class="tag">This is me</div></div>`).join("");
+  grid.querySelectorAll(".role-btn").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const name = btn.dataset.name;
+      const msgEl = document.getElementById("nameMsg");
+      msgEl.innerHTML = "";
+      const result = await claimName(pendingAuthEmail, name);
+      if(!result.ok){
+        if(result.reason === "taken"){
+          msgEl.innerHTML = '<span style="color:var(--red);">That name is already linked to a different email. If this is you, contact the BLI Lead to reset it.</span>';
+        } else {
+          msgEl.innerHTML = '<span style="color:var(--red);">Something went wrong — please try again.</span>';
+        }
+        return;
+      }
+      currentUser = name;
+      await saveLastRole(currentUser);
+      enterApp();
+    });
+  });
+}
+
 function renderLogin(){
   const modeTag = document.getElementById("modeTag");
   if(modeTag){
@@ -354,10 +405,32 @@ function renderLogin(){
       : '<b style="color:#C0392B;">● Demo mode — Firebase not configured. Email sign-in requires Firebase.</b>';
   }
 
-  document.getElementById("adminLoginBtn").addEventListener("click", async ()=>{
-    currentUser = "Admin";
-    await saveLastRole(currentUser);
-    enterApp();
+  document.getElementById("adminSignInBtn").addEventListener("click", async ()=>{
+    const msgEl = document.getElementById("adminMsg");
+    const email = document.getElementById("adminEmailInput").value.trim();
+    const password = document.getElementById("adminPasswordInput").value;
+    msgEl.innerHTML = "";
+    if(!email || !password){ msgEl.innerHTML = '<span style="color:var(--red);">Enter both email and password.</span>'; return; }
+    if(!LIVE){ msgEl.innerHTML = '<span style="color:var(--red);">Admin sign-in requires Firebase to be configured.</span>'; return; }
+
+    const btn = document.getElementById("adminSignInBtn");
+    btn.disabled = true; btn.textContent = "Signing in…";
+    try{
+      const cred = await auth.signInWithEmailAndPassword(email, password);
+      if(cred.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()){
+        await auth.signOut();
+        msgEl.innerHTML = '<span style="color:var(--red);">This account is not authorized as Admin.</span>';
+        btn.disabled = false; btn.textContent = "Sign in as Admin";
+        return;
+      }
+      currentUser = "Admin";
+      await saveLastRole(currentUser);
+      enterApp();
+    }catch(e){
+      console.warn(e);
+      msgEl.innerHTML = '<span style="color:var(--red);">Invalid email or password.</span>';
+      btn.disabled = false; btn.textContent = "Sign in as Admin";
+    }
   });
 
   document.getElementById("sendLinkBtn").addEventListener("click", async ()=>{
@@ -365,8 +438,6 @@ function renderLogin(){
     const emailInput = document.getElementById("emailInput");
     const email = emailInput.value.trim();
     if(!email || !email.includes("@")){ msgEl.innerHTML = '<span style="color:var(--red);">Enter a valid email address.</span>'; return; }
-    const name = nameForEmail(email);
-    if(!name){ msgEl.innerHTML = '<span style="color:var(--red);">This email is not on the training roster. Contact the BLI Lead if this is a mistake.</span>'; return; }
     if(!LIVE){ msgEl.innerHTML = '<span style="color:var(--red);">Email sign-in requires Firebase to be configured — currently running in demo mode.</span>'; return; }
 
     const btn = document.getElementById("sendLinkBtn");
@@ -398,6 +469,7 @@ document.getElementById("switchUser").addEventListener("click", async ()=>{
   document.getElementById("app").style.display="none";
   document.getElementById("emailStage").style.display="block";
   document.getElementById("sentStage").style.display="none";
+  document.getElementById("nameStage").style.display="none";
   document.getElementById("emailInput").value="";
   document.getElementById("emailMsg").innerHTML="";
   document.getElementById("loginOverlay").style.display="flex";
@@ -405,30 +477,39 @@ document.getElementById("switchUser").addEventListener("click", async ()=>{
 
 // ---------- Handle arriving via a magic-link click ----------
 async function tryMagicLinkSignIn(){
-  if(!LIVE || !auth) return false;
-  if(!auth.isSignInWithEmailLink(window.location.href)) return false;
+  if(!LIVE || !auth) return "none";
+  if(!auth.isSignInWithEmailLink(window.location.href)) return "none";
 
   let email = localStorage.getItem("spar_email_for_signin");
   if(!email){
     email = window.prompt("Confirm the email address you used to request this link:");
   }
-  if(!email) return false;
+  if(!email) return "none";
 
   try{
     await auth.signInWithEmailLink(email, window.location.href);
     localStorage.removeItem("spar_email_for_signin");
-    const name = nameForEmail(email);
-    if(!name){ alert("Signed in, but this email is not on the training roster. Contact the BLI Lead."); return false; }
-    currentUser = name;
-    await saveLastRole(currentUser);
-    // clean the sign-in params out of the URL
     window.history.replaceState({}, document.title, window.location.href.split("?")[0]);
-    return true;
+
+    if(email.toLowerCase() === ADMIN_EMAIL.toLowerCase()){
+      currentUser = "Admin";
+      await saveLastRole(currentUser);
+      return "signed-in";
+    }
+
+    const name = await loadNameForEmail(email);
+    if(name){
+      currentUser = name;
+      await saveLastRole(currentUser);
+      return "signed-in";
+    }
+    pendingAuthEmail = email;
+    return "needs-name";
   }catch(e){
     console.warn("Magic link sign-in failed", e);
     alert("This sign-in link is invalid or has expired. Please request a new one.");
     window.history.replaceState({}, document.title, window.location.href.split("?")[0]);
-    return false;
+    return "none";
   }
 }
 
@@ -571,10 +652,33 @@ function renderMySchedule(){
   });
 }
 
+async function renderIdentityPanel(){
+  const root = document.getElementById("identityPanel");
+  if(!root) return;
+  let rows = [];
+  if(LIVE){
+    try{
+      const snap = await db.collection('sparUsers').get();
+      snap.forEach(doc => rows.push({email: doc.id, name: doc.data().name}));
+    }catch(e){ console.warn(e); }
+  } else {
+    try{ const map = JSON.parse(localStorage.getItem("spar_email_name_map")||"{}"); rows = Object.entries(map).map(([email,name])=>({email,name})); }catch(e){}
+  }
+  const claimedNames = new Set(rows.map(r=>r.name));
+  const unclaimed = ALL.filter(n=>!claimedNames.has(n));
+  root.innerHTML = `<h3 style="font-size:14px;color:var(--navy-2);margin:0 0 10px;">Signed-In Identities</h3>
+    <div class="progress-wrap" style="padding:10px 16px;">
+      ${rows.length ? rows.map(r=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px;"><span style="font-weight:700;">${r.name}</span><span style="color:var(--slate);">${r.email}</span></div>`).join("") : '<div style="color:var(--slate-2);font-size:12.5px;">No one has signed in yet.</div>'}
+      ${unclaimed.length ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:11.5px;color:var(--amber);">Not yet signed in: ${unclaimed.join(", ")}</div>` : ""}
+    </div>`;
+}
+
 function renderAdmin(){
   const statsRoot = document.getElementById("adminStats");
   const overrideRoot = document.getElementById("overrideBox");
   const listRoot = document.getElementById("scheduleList");
+
+  renderIdentityPanel();
 
   overrideRoot.innerHTML = `<div class="override-box">
     <span><b>Manual override:</b> ${overrideOpen ? "All confirmation windows are FORCED OPEN." : "Windows follow the normal 30-minute schedule."}</span>
@@ -646,6 +750,7 @@ function renderAll(){
     document.getElementById("adminStats").innerHTML="";
     document.getElementById("overrideBox").innerHTML="";
     document.getElementById("traineeProgress").innerHTML="";
+    document.getElementById("identityPanel").innerHTML="";
     renderStatusBanner();
     renderMySchedule();
   }
@@ -675,8 +780,9 @@ async function startApp(){
 
 (async function init(){
   renderLogin();
-  const signedIn = await tryMagicLinkSignIn();
-  if(signedIn){ enterApp(); }
+  const result = await tryMagicLinkSignIn();
+  if(result === "signed-in"){ enterApp(); }
+  else if(result === "needs-name"){ showNameStage(); }
 })();
 </script>
 </body>
