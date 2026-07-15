@@ -79,6 +79,20 @@
   .shot-input{font-size:12px;margin-bottom:8px;display:block;}
   .shot-preview{margin-bottom:8px;}
   .shot-thumb{max-width:180px;max-height:120px;border-radius:8px;border:1px solid var(--line);display:block;}
+  .quiz-q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+  .quiz-q .qnum{font-size:11px;font-weight:700;color:var(--slate-2);text-transform:uppercase;margin-bottom:5px;}
+  .quiz-q .qtext{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:10px;line-height:1.4;}
+  .quiz-opt{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;}
+  .quiz-opt:hover{background:#F5F8FD;}
+  .quiz-opt input{cursor:pointer;}
+  .tv-select{width:100%;max-width:280px;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;font-family:'Inter';margin-bottom:14px;background:#fff;}
+  .tv-day{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;}
+  .tv-day-head{padding:9px 14px;background:#F8FAFD;border-bottom:1px solid var(--line);font-weight:700;font-size:12.5px;color:var(--navy-2);}
+  .tv-row{padding:10px 14px;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .tv-row:last-child{border-bottom:none;}
+  .tv-row .tv-meta{font-size:10px;color:var(--slate-2);text-transform:uppercase;font-weight:700;margin-bottom:3px;}
+  .tv-row .tv-title{font-weight:600;color:var(--ink);margin-bottom:3px;}
+  .tv-row .tv-fac{color:var(--slate);font-size:11.5px;margin-bottom:6px;}
 
   .empty-note{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--slate-2);font-size:13px;}
   .footer-note{margin-top:18px;font-size:11px;color:var(--slate-2);text-align:center;line-height:1.5;}
@@ -165,8 +179,42 @@
     <div id="adminStats"></div>
     <div id="traineeProgress"></div>
     <div id="identityPanel"></div>
+    <div id="assessmentPanel"></div>
+    <div id="traineeViewerPanel"></div>
     <div id="scheduleList"></div>
     <div class="footer-note">Confirmation windows open automatically 30 minutes after each day's final scheduled session and close after 30 minutes. Times shown are your device's local time.</div>
+  </div>
+</div>
+
+<div id="quizOverlay" style="position:fixed;inset:0;background:var(--paper);z-index:300;display:none;overflow-y:auto;">
+  <div style="max-width:720px;margin:0 auto;padding:28px 20px 60px;">
+
+    <div id="quizIntroStage">
+      <div style="background:#FBE1DE;border:1.5px solid #E8A9A2;border-radius:12px;padding:16px 18px;margin-bottom:20px;">
+        <div style="font-weight:800;color:var(--red);font-size:14px;margin-bottom:6px;">⚠ Strict assessment conditions</div>
+        <div style="font-size:13px;color:#7A2A22;line-height:1.6;">Once you begin, you must <b>not switch tabs, minimize the window, or close this portal</b> until you submit. Doing so will immediately end and lock your attempt — there is no retake.</div>
+      </div>
+      <h2 id="quizTitle" style="font-size:20px;color:var(--navy-2);margin-bottom:6px;"></h2>
+      <p style="font-size:13px;color:var(--slate);margin-bottom:18px;">25 questions · 10 minutes · Single attempt</p>
+      <button id="beginQuizBtn" style="width:100%;padding:13px;border-radius:9px;border:none;background:var(--navy-2);color:#fff;font-weight:700;font-size:14px;cursor:pointer;">Begin Assessment</button>
+    </div>
+
+    <div id="quizActiveStage" style="display:none;">
+      <div style="position:sticky;top:0;background:var(--paper);padding:12px 0;z-index:5;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--line);margin-bottom:16px;">
+        <h3 style="font-size:15px;color:var(--navy-2);" id="quizActiveTitle"></h3>
+        <div class="mono" id="quizTimer" style="font-size:20px;font-weight:700;color:var(--red);"></div>
+      </div>
+      <div id="quizQuestions"></div>
+      <button id="submitQuizBtn" style="width:100%;padding:13px;border-radius:9px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:14px;cursor:pointer;margin-top:10px;">Submit Assessment</button>
+    </div>
+
+    <div id="quizResultStage" style="display:none;text-align:center;padding:60px 0;">
+      <div id="quizResultIcon" style="font-size:48px;margin-bottom:12px;"></div>
+      <h2 id="quizResultTitle" style="font-size:20px;color:var(--navy-2);margin-bottom:8px;"></h2>
+      <p id="quizResultDetail" style="font-size:14px;color:var(--slate);margin-bottom:22px;"></p>
+      <button id="returnToScheduleBtn" style="padding:11px 22px;border-radius:8px;border:1.5px solid var(--navy-2);background:#fff;color:var(--navy-2);font-weight:700;font-size:13px;cursor:pointer;">Return to my schedule</button>
+    </div>
+
   </div>
 </div>
 
@@ -273,6 +321,14 @@ let pendingAuthEmail = null;
 const CONFIRM_STORE = "spar_confirm_v1";
 const ROLE_STORE = "spar_confirm_last_role";
 let confirmations = {}; // key: sessionId|trainee -> {confirmed:true, at: iso}
+
+// ---------- Assessments: linked to a session id; opens automatically once that session is confirmed ----------
+const ASSESSMENTS = [
+  { id:"A-NOVEC-M1", sessionId:"S03", title:"Novec 1230 Fire Suppression System — Module 1 Assessment", durationMin:10, questions: [{"id":"Q01","text":"What type of fire suppression system is Novec 1230?","options":["Wet Pipe Sprinkler","Clean Agent Fire Suppression System","Foam System","Dry Chemical System"],"answer":1},{"id":"Q02","text":"Which NFPA standard governs clean agent fire suppression systems?","options":["NFPA 13","NFPA 72","NFPA 2001","NFPA 70"],"answer":2},{"id":"Q03","text":"Which component stores the extinguishing agent?","options":["Detector","Nozzle","Cylinder","Solenoid"],"answer":2},{"id":"Q04","text":"The primary advantage of Novec 1230 over water suppression is that it:","options":["Produces more pressure","Leaves no residue after discharge","Requires less maintenance","Uses less piping"],"answer":1},{"id":"Q05","text":"Which of the following is commonly protected by Novec 1230?","options":["Football field","Data Centre","Parking lot","Garden"],"answer":1},{"id":"Q06","text":"The discharge nozzle is designed to:","options":["Detect smoke","Distribute the extinguishing agent","Increase pressure","Monitor temperature"],"answer":1},{"id":"Q07","text":"Which device allows manual activation of the suppression system?","options":["Abort Switch","Manual Release Station","Heat Detector","Pressure Gauge"],"answer":1},{"id":"Q08","text":"The purpose of an abort switch is to:","options":["Recharge cylinders","Delay or prevent discharge while held","Silence alarms permanently","Reset detectors"],"answer":1},{"id":"Q09","text":"Before agent discharge, occupants should:","options":["Continue working","Evacuate immediately","Open windows","Turn off lighting"],"answer":1},{"id":"Q10","text":"Novec 1230 is considered safe for use around sensitive electronic equipment because it is:","options":["Water-based","Conductive","Non-conductive and residue-free","Highly corrosive"],"answer":2},{"id":"Q11","text":"During maintenance, you discover the cylinder pressure gauge is below the acceptable range. What should you do?","options":["Ignore it until the next inspection","Repaint the cylinder","Report the fault and remove the system from service until corrected","Reset the control panel"],"answer":2},{"id":"Q12","text":"A smoke detector activates in a protected room, but the Novec agent does not discharge. The system uses cross-zoning. What is the most likely explanation?","options":["The cylinder is empty","Another detector must also activate before discharge","The nozzles are blocked","The alarm is faulty"],"answer":1},{"id":"Q13","text":"A customer wants to protect a server room from fire while avoiding damage to expensive IT equipment. What should you recommend?","options":["Wet Pipe Sprinklers","Foam System","Novec 1230 Clean Agent System","Water Mist Only"],"answer":2},{"id":"Q14","text":"While inspecting a protected room, you notice storage boxes directly beneath a discharge nozzle. What is the best action?","options":["Leave them because they are not touching the nozzle","Relocate the boxes to ensure unobstructed agent discharge","Increase cylinder pressure","Install another detector"],"answer":1},{"id":"Q15","text":"During commissioning, the pre-discharge alarm sounds. What should occupants do?","options":["Wait to confirm there is a fire","Evacuate the protected room immediately","Turn off the smoke detectors","Open all windows"],"answer":1},{"id":"Q16","text":"An engineer manually releases the Novec system without first confirming everyone has evacuated. Which safety principle has been violated?","options":["Cross-zoning","Life safety and evacuation procedures","Pressure monitoring","Detector testing"],"answer":1},{"id":"Q17","text":"After completing maintenance, you forget to reconnect the cylinder release circuit. What could happen during a real fire?","options":["The agent will discharge normally","The alarm may activate, but the extinguishing agent will not discharge","The detectors will stop sensing smoke","The pressure gauge will increase"],"answer":1},{"id":"Q18","text":"During a site inspection, new cable openings have been created in the walls of a protected room. Why is this a concern?","options":["It changes room lighting","It may prevent the room from retaining the clean agent long enough to extinguish the fire","It affects smoke detector sensitivity only","It has no effect"],"answer":1},{"id":"Q19","text":"A technician suggests using Novec 1230 to protect an open warehouse with large permanent openings. How should you respond?","options":["Approve because Novec works everywhere","Recommend another suitable suppression method because clean agent systems require enclosed spaces","Increase cylinder size only","Add more nozzles"],"answer":1},{"id":"Q20","text":"During inspection, the discharge nozzle has been painted over during renovation. What should be done?","options":["Leave it because appearance has improved","Replace or clean the nozzle to restore proper discharge characteristics","Increase cylinder pressure","Disable the system"],"answer":1},{"id":"Q21","text":"The client complains that the discharge delay is \"too slow\" and wants it removed. What should you advise?","options":["Remove it immediately","Explain that the delay is a life-safety feature allowing occupants to evacuate before discharge","Disconnect the sounders instead","Reduce cylinder pressure"],"answer":1},{"id":"Q22","text":"While inspecting the system, you discover that the manual release station is blocked by a cabinet. What is the best course of action?","options":["Ignore it","Move the obstruction immediately because the manual release must remain accessible","Install another detector","Turn off the panel"],"answer":1},{"id":"Q23","text":"During a fire event, the control panel indicates \"Cylinder Low Pressure.\" What should you conclude?","options":["The system is fully operational","The extinguishing agent may not discharge effectively and immediate corrective action is required","The smoke detector has failed","The room is too cold"],"answer":1},{"id":"Q24","text":"Following an agent discharge, a supervisor wants staff to immediately re-enter the protected room to retrieve equipment. What should you recommend?","options":["Allow immediate entry","Confirm that the area is safe and follow post-discharge procedures before re-entry","Disconnect the control panel","Recharge the cylinder first"],"answer":1},{"id":"Q25","text":"While reviewing an installation, you discover that the discharge pipe has been modified without following the manufacturer's design calculations. What is the greatest concern?","options":["The pipe may look untidy","The extinguishing agent may not be distributed correctly, reducing system effectiveness","The detectors will stop working","The pressure gauge will fail"],"answer":1}] },
+  { id:"A-FIREALARM-M1", sessionId:"S04", title:"Fire Alarm System — Module 1 Assessment", durationMin:10, questions: [{"id":"FA01","text":"What is the primary purpose of a Fire Alarm Control Panel (FACP)?","options":["Store fire extinguishing agent","Monitor and control the fire detection and notification system","Provide electrical power to the building","Extinguish fires automatically"],"answer":1},{"id":"FA02","text":"Which NFPA standard governs the installation of fire alarm systems?","options":["NFPA 13","NFPA 72","NFPA 2001","NFPA 101"],"answer":1},{"id":"FA03","text":"Which type of detector responds primarily to a rapid rise in temperature or a fixed temperature threshold?","options":["Smoke Detector","Heat Detector","Flame Detector","Gas Detector"],"answer":1},{"id":"FA04","text":"What is the function of a manual call point (MCP)?","options":["Automatically detect smoke","Allow a person to manually initiate a fire alarm","Silence the alarm","Test the battery backup"],"answer":1},{"id":"FA05","text":"In an addressable fire alarm system, each device has a unique:","options":["Colour code","Address/identifier","Sound pattern","Battery"],"answer":1},{"id":"FA06","text":"What is the purpose of the standby battery in a fire alarm control panel?","options":["To power the sprinkler system","To provide backup power during a mains power failure","To increase alarm volume","To charge smoke detectors"],"answer":1},{"id":"FA07","text":"Which device is used to alert occupants audibly and/or visually during a fire alarm condition?","options":["Detector","Notification appliance (sounder/strobe)","Isolator module","Junction box"],"answer":1},{"id":"FA08","text":"What is the main difference between a conventional and an addressable fire alarm system?","options":["Conventional systems use zones; addressable systems identify individual devices","Addressable systems do not need a control panel","Conventional systems are wireless","There is no difference"],"answer":0},{"id":"FA09","text":"What does \"Class A wiring\" refer to in a fire alarm circuit?","options":["A single wiring path with no redundancy","A looped wiring path providing fault tolerance","Wireless communication only","Wiring used only for power supply"],"answer":1},{"id":"FA10","text":"What is the purpose of cause-and-effect programming in a fire alarm system?","options":["To determine detector colour","To define what actions the system takes automatically when specific inputs are triggered","To calculate battery life","To set the alarm volume"],"answer":1},{"id":"FA11","text":"During a routine inspection, you find a smoke detector painted over by decorators. What is the most appropriate action?","options":["Leave it since it still looks intact","Replace or clean the detector, as paint can prevent it from sensing smoke correctly","Increase the panel sensitivity instead","Disconnect the detector permanently"],"answer":1},{"id":"FA12","text":"A fire alarm activates in Zone 3, but no smoke or fire is found after investigation. What should you do next?","options":["Ignore future alarms from that zone","Reset the system and investigate the cause of the false alarm","Disconnect Zone 3 permanently","Increase the alarm volume"],"answer":1},{"id":"FA13","text":"While testing the system, you notice the control panel displays a \"Fault\" indication on one loop. What does this most likely indicate?","options":["The system is functioning normally","There is a wiring or device fault on that loop that requires investigation","The battery is fully charged","A fire has been detected"],"answer":1},{"id":"FA14","text":"A client wants to disable the sounders in a hospital ward to avoid disturbing patients during a fire alarm. What should you advise?","options":["Approve the request immediately","Explain that notification devices are a life-safety requirement, and alternative methods (e.g. staff alert, visual notification) should be used instead of full disabling","Remove the detectors instead","Reduce the number of zones"],"answer":1},{"id":"FA15","text":"During commissioning, you find that a manual call point is installed behind a locked door. What is the concern?","options":["None, as long as the device works","Manual call points must be easily accessible at all times for emergency use","It only affects appearance","It reduces false alarms"],"answer":1},{"id":"FA16","text":"An engineer disables a zone for maintenance but forgets to re-enable it afterward. What is the risk?","options":["The system will run faster","Fires in that zone may go undetected until the zone is restored","The battery will drain faster","The panel will reset automatically"],"answer":1},{"id":"FA17","text":"A technician wants to use ordinary twin-core cable instead of fire-rated cable for fire alarm wiring. How should you respond?","options":["Approve it since it is cheaper","Advise against it, as fire alarm circuits require fire-rated/certified cable to maintain circuit integrity during a fire","Use it only for detectors, not sounders","It makes no difference"],"answer":1},{"id":"FA18","text":"During a fire drill, the notification devices in one zone did not activate although the panel showed the zone in alarm. What is the most likely cause?","options":["The devices are functioning correctly","A wiring fault or isolated notification circuit in that zone","The smoke detector is too sensitive","The battery is overcharged"],"answer":1},{"id":"FA19","text":"A building manager wants to extend the fire alarm system to a newly partitioned office area without notifying the installer. What is the main concern?","options":["It will improve system coverage automatically","Unapproved modifications may compromise detection coverage and system design compliance","It reduces the number of required detectors","It has no impact on the system"],"answer":1},{"id":"FA20","text":"While reviewing the system, you discover that the standby battery has not been replaced in over 5 years. What should you recommend?","options":["Leave it since the panel is still powered by mains","Test and likely replace the battery, as standby batteries degrade over time and may fail during a power outage","Remove the battery entirely","Increase the battery's charging voltage"],"answer":1},{"id":"FA21","text":"A false alarm keeps recurring from a smoke detector near a kitchen. What is the best long-term solution?","options":["Disconnect the detector permanently","Assess and replace with a detector type more suitable for that environment (e.g. heat detector) or relocate it appropriately","Ignore the alarms","Increase the alarm threshold on the entire system"],"answer":1},{"id":"FA22","text":"During an audit, you find that the fire alarm system has not been serviced or tested in over a year. What is the greatest concern?","options":["The panel display may look outdated","Undetected faults could mean the system fails to operate correctly during an actual fire","It only affects the warranty","It has no operational impact"],"answer":1},{"id":"FA23","text":"A supervisor insists staff should evacuate only after visually confirming a fire, ignoring the alarm. What should you advise?","options":["Support this practice to avoid false evacuations","Advise that occupants should evacuate immediately upon alarm activation per standard procedure, not wait for visual confirmation","Recommend removing the alarm sounders","Recommend increasing the false alarm threshold"],"answer":1},{"id":"FA24","text":"While inspecting the panel, you notice multiple devices in \"trouble\" status displayed simultaneously. What should be your first step?","options":["Silence the panel and take no further action","Investigate the cause promptly, as multiple faults may indicate a wiring, power, or communication issue affecting system reliability","Replace the panel immediately without diagnosis","Ignore it if no alarm is active"],"answer":1},{"id":"FA25","text":"A newly commissioned fire alarm system has not yet been linked to the building's evacuation procedure or staff training. What is the risk?","options":["None, as the system will operate independently","Occupants may not respond correctly during a real alarm if procedures and training are not in place, reducing overall life-safety effectiveness","It only affects insurance costs","It reduces maintenance requirements"],"answer":1}] },
+];
+function assessmentForSession(sessionId){ return ASSESSMENTS.find(a=>a.sessionId===sessionId) || null; }
+
 let overrideOpen = false;
 let currentUser = null;
 
@@ -296,6 +352,152 @@ async function saveConfirmationEntry(k, val){
   }
   try{ localStorage.setItem(CONFIRM_STORE, JSON.stringify(confirmations)); }catch(e){}
 }
+
+// ---------- Assessment attempt persistence ----------
+function attemptKey(assessmentId, trainee){ return assessmentId+"|"+trainee; }
+async function loadAssessmentAttempt(assessmentId, trainee){
+  const k = attemptKey(assessmentId, trainee);
+  if (LIVE) {
+    try{ const doc = await db.collection('sparAssessments').doc(k).get(); return doc.exists ? doc.data() : null; }
+    catch(e){ console.warn(e); return null; }
+  }
+  try{ const all = JSON.parse(localStorage.getItem("spar_assess_local")||"{}"); return all[k] || null; }catch(e){ return null; }
+}
+async function saveAssessmentAttempt(assessmentId, trainee, val){
+  const k = attemptKey(assessmentId, trainee);
+  if (LIVE) {
+    try{ await db.collection('sparAssessments').doc(k).set(val); return; }catch(e){ console.warn(e); }
+  }
+  try{
+    const all = JSON.parse(localStorage.getItem("spar_assess_local")||"{}");
+    all[k] = val;
+    localStorage.setItem("spar_assess_local", JSON.stringify(all));
+  }catch(e){}
+}
+function scoreAssessment(assessment, answers){
+  let correct = 0;
+  assessment.questions.forEach(q=>{ if(answers[q.id] === q.answer) correct++; });
+  return correct;
+}
+
+// ---------- Live quiz state ----------
+let activeQuiz = null; // {assessment, trainee, answers:{}, deadline:Date, timerHandle}
+function quizVisibilityHandler(){
+  if(document.visibilityState === "hidden" && activeQuiz){
+    endQuiz({closedOut:true, reason:"Left the tab or minimized the window during the assessment."});
+  }
+}
+function quizBeforeUnloadHandler(e){
+  if(activeQuiz){
+    // best-effort — not guaranteed to complete, but visibilitychange (above) is the primary safeguard
+    endQuiz({closedOut:true, reason:"Closed the tab during the assessment."});
+  }
+}
+
+async function openAssessmentIntro(assessmentId){
+  const assessment = ASSESSMENTS.find(a=>a.id===assessmentId);
+  if(!assessment) return;
+  const existing = await loadAssessmentAttempt(assessmentId, currentUser);
+  if(existing && existing.submitted){ showQuizResult(assessment, existing); return; }
+
+  document.getElementById("quizOverlay").style.display = "block";
+  document.getElementById("quizIntroStage").style.display = "block";
+  document.getElementById("quizActiveStage").style.display = "none";
+  document.getElementById("quizResultStage").style.display = "none";
+  document.getElementById("quizTitle").textContent = assessment.title;
+  document.getElementById("beginQuizBtn").onclick = ()=> beginQuiz(assessment);
+}
+
+async function beginQuiz(assessment){
+  const startedAt = new Date().toISOString();
+  const deadline = new Date(Date.now() + assessment.durationMin*60000);
+  activeQuiz = { assessment, trainee: currentUser, answers:{}, deadline };
+  await saveAssessmentAttempt(assessment.id, currentUser, { startedAt, submitted:false, answers:{} });
+
+  document.getElementById("quizIntroStage").style.display = "none";
+  document.getElementById("quizActiveStage").style.display = "block";
+  document.getElementById("quizActiveTitle").textContent = assessment.title;
+
+  const qRoot = document.getElementById("quizQuestions");
+  qRoot.innerHTML = assessment.questions.map((q,qi)=>`
+    <div class="quiz-q">
+      <div class="qnum">Question ${qi+1} of ${assessment.questions.length}</div>
+      <div class="qtext">${q.text}</div>
+      ${q.options.map((opt,oi)=>`
+        <label class="quiz-opt">
+          <input type="radio" name="${q.id}" value="${oi}">
+          <span>${String.fromCharCode(65+oi)}. ${opt}</span>
+        </label>`).join("")}
+    </div>
+  `).join("");
+
+  qRoot.querySelectorAll("input[type=radio]").forEach(inp=>{
+    inp.addEventListener("change", e=>{
+      if(activeQuiz) activeQuiz.answers[e.target.name] = Number(e.target.value);
+    });
+  });
+
+  document.getElementById("submitQuizBtn").onclick = ()=> endQuiz({closedOut:false, reason:"submitted"});
+
+  document.addEventListener("visibilitychange", quizVisibilityHandler);
+  window.addEventListener("beforeunload", quizBeforeUnloadHandler);
+
+  const timerEl = document.getElementById("quizTimer");
+  const tick = ()=>{
+    if(!activeQuiz) return;
+    const msLeft = activeQuiz.deadline - new Date();
+    if(msLeft <= 0){ endQuiz({closedOut:false, reason:"time expired", autoSubmitted:true}); return; }
+    const totalSec = Math.floor(msLeft/1000);
+    timerEl.textContent = String(Math.floor(totalSec/60)).padStart(2,"0")+":"+String(totalSec%60).padStart(2,"0");
+  };
+  tick();
+  activeQuiz.timerHandle = setInterval(tick, 1000);
+}
+
+async function endQuiz({closedOut, reason, autoSubmitted}){
+  if(!activeQuiz) return;
+  const { assessment, trainee, answers } = activeQuiz;
+  clearInterval(activeQuiz.timerHandle);
+  document.removeEventListener("visibilitychange", quizVisibilityHandler);
+  window.removeEventListener("beforeunload", quizBeforeUnloadHandler);
+
+  const score = scoreAssessment(assessment, answers);
+  const record = {
+    submitted: true, closedOut: !!closedOut, closeReason: reason || null, autoSubmitted: !!autoSubmitted,
+    answers, score, total: assessment.questions.length, submittedAt: new Date().toISOString(),
+  };
+  activeQuiz = null;
+  await saveAssessmentAttempt(assessment.id, trainee, record);
+  showQuizResult(assessment, record);
+  renderAll();
+}
+
+function showQuizResult(assessment, record){
+  document.getElementById("quizOverlay").style.display = "block";
+  document.getElementById("quizIntroStage").style.display = "none";
+  document.getElementById("quizActiveStage").style.display = "none";
+  document.getElementById("quizResultStage").style.display = "block";
+  const icon = document.getElementById("quizResultIcon");
+  const title = document.getElementById("quizResultTitle");
+  const detail = document.getElementById("quizResultDetail");
+  if(record.closedOut){
+    icon.textContent = "🔒";
+    title.textContent = "Closed Out";
+    title.style.color = "var(--red)";
+    detail.textContent = (record.closeReason || "You left the assessment before submitting.") + " This attempt is final and cannot be retaken. Contact the BLI Lead if you believe this is an error.";
+  } else {
+    icon.textContent = "✅";
+    title.textContent = `You scored ${record.score}/${record.total}`;
+    title.style.color = "var(--navy-2)";
+    detail.textContent = record.autoSubmitted ? "Time expired — your answers were submitted automatically." : "Your assessment has been submitted.";
+  }
+  document.getElementById("returnToScheduleBtn").onclick = ()=>{
+    document.getElementById("quizOverlay").style.display = "none";
+    renderAll();
+  };
+}
+
+
 async function loadOverride(){
   if (LIVE) {
     try {
@@ -466,6 +668,7 @@ function renderLogin(){
 
 document.getElementById("switchUser").addEventListener("click", async ()=>{
   if(LIVE && auth && auth.currentUser){ try{ await auth.signOut(); }catch(e){} }
+  selectedTraineeView = null;
   document.getElementById("app").style.display="none";
   document.getElementById("emailStage").style.display="block";
   document.getElementById("sentStage").style.display="none";
@@ -587,7 +790,9 @@ function renderMySchedule(){
         const rec = confirmations[key(s.id,currentUser)];
         const atTime = new Date(rec.at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
         const viewLink = rec.screenshot ? `<span class="view-shot" data-sess="${s.id}" style="margin-left:8px;color:#1F6FB2;text-decoration:underline;cursor:pointer;font-weight:600;">View screenshot</span>` : "";
-        action = `<span class="confirmed-tag">✓ Confirmed at ${atTime}</span>${viewLink}`;
+        const linkedAssessment = assessmentForSession(s.id);
+        const assessLink = linkedAssessment ? `<span class="open-assess" data-assess-id="${linkedAssessment.id}" style="margin-left:8px;color:var(--orange);text-decoration:underline;cursor:pointer;font-weight:600;">Assessment</span>` : "";
+        action = `<span class="confirmed-tag">✓ Confirmed at ${atTime}</span>${viewLink}${assessLink}`;
       } else if(state==="open"){
         action = `
           <div class="upload-block" data-sess="${s.id}">
@@ -640,6 +845,8 @@ function renderMySchedule(){
       await saveConfirmationEntry(k, {confirmed:true, at:new Date().toISOString(), screenshot});
       delete pendingFiles[sid];
       renderAll();
+      const linkedAssessment = assessmentForSession(sid);
+      if(linkedAssessment){ await openAssessmentIntro(linkedAssessment.id); }
     });
   });
 
@@ -648,6 +855,12 @@ function renderMySchedule(){
       const sid = el.dataset.sess;
       const rec = confirmations[key(sid,currentUser)];
       if(rec && rec.screenshot){ window.open(rec.screenshot, "_blank"); }
+    });
+  });
+
+  root.querySelectorAll(".open-assess").forEach(el=>{
+    el.addEventListener("click", async ()=>{
+      await openAssessmentIntro(el.dataset.assessId);
     });
   });
 }
@@ -673,12 +886,128 @@ async function renderIdentityPanel(){
     </div>`;
 }
 
+async function renderAssessmentPanel(){
+  const root = document.getElementById("assessmentPanel");
+  if(!root) return;
+  if(!ASSESSMENTS.length){ root.innerHTML = ""; return; }
+
+  const sections = [];
+  for(const assessment of ASSESSMENTS){
+    const sess = SESSIONS.find(s=>s.id===assessment.sessionId);
+    const eligible = sess ? sess.trainees : [];
+    const rowsHtml = [];
+    for(const trainee of eligible){
+      const attempt = await loadAssessmentAttempt(assessment.id, trainee);
+      let statusHtml, scoreHtml;
+      if(!attempt){
+        statusHtml = `<span style="color:var(--slate-2);">Not started</span>`;
+        scoreHtml = "—";
+      } else if(!attempt.submitted){
+        statusHtml = `<span style="color:var(--amber);font-weight:700;">In progress</span>`;
+        scoreHtml = "—";
+      } else if(attempt.closedOut){
+        statusHtml = `<span style="color:var(--red);font-weight:700;">Closed out</span>`;
+        scoreHtml = `${attempt.score}/${attempt.total} (partial)`;
+      } else {
+        statusHtml = `<span style="color:var(--green);font-weight:700;">Completed</span>`;
+        scoreHtml = `${attempt.score}/${attempt.total}`;
+      }
+      rowsHtml.push(`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px;border-bottom:1px solid var(--line);">
+        <span style="font-weight:700;width:100px;">${trainee}</span>
+        <span style="width:110px;">${statusHtml}</span>
+        <span class="mono" style="width:100px;text-align:right;">${scoreHtml}</span>
+      </div>`);
+    }
+    sections.push(`<div style="margin-bottom:14px;">
+      <div style="font-weight:700;font-size:13px;color:var(--navy-2);margin-bottom:6px;">${assessment.title}</div>
+      <div class="progress-wrap" style="padding:6px 16px;">${rowsHtml.join("")}</div>
+    </div>`);
+  }
+  root.innerHTML = `<h3 style="font-size:14px;color:var(--navy-2);margin:18px 0 10px;">Assessment Results</h3>` + sections.join("");
+}
+
+let selectedTraineeView = null;
+
+async function renderTraineeViewer(){
+  const root = document.getElementById("traineeViewerPanel");
+  if(!root) return;
+  if(!root.querySelector(".tv-select")){
+    root.innerHTML = `<h3 style="font-size:14px;color:var(--navy-2);margin:18px 0 10px;">View Trainee Portal</h3>
+      <p style="font-size:11.5px;color:var(--slate);margin:-6px 0 10px;">Read-only — see exactly what this trainee sees: schedule, confirmations, screenshots, and assessment results.</p>
+      <select class="tv-select" id="tvSelect">
+        <option value="">Select a trainee…</option>
+        ${ALL.map(n=>`<option value="${n}">${n}</option>`).join("")}
+      </select>
+      <div id="tvDetail"></div>`;
+    document.getElementById("tvSelect").addEventListener("change", async (e)=>{
+      selectedTraineeView = e.target.value || null;
+      await renderTraineeDetail();
+    });
+  }
+  const sel = document.getElementById("tvSelect");
+  if(sel && sel.value !== (selectedTraineeView||"")) sel.value = selectedTraineeView || "";
+  await renderTraineeDetail();
+}
+
+async function renderTraineeDetail(){
+  const detailRoot = document.getElementById("tvDetail");
+  if(!detailRoot) return;
+  if(!selectedTraineeView){ detailRoot.innerHTML = ""; return; }
+  const name = selectedTraineeView;
+  const mine = SESSIONS.filter(s=>s.trainees.includes(name));
+  const byDate = {};
+  mine.forEach(s=>{ (byDate[s.date]=byDate[s.date]||[]).push(s); });
+  const dates = Object.keys(byDate).sort();
+
+  let html = "";
+  for(const date of dates){
+    const d = new Date(date+"T00:00:00");
+    const dateLabel = d.toLocaleDateString('en-US',{weekday:'long', day:'numeric', month:'long'});
+    let rows = "";
+    for(const s of byDate[date]){
+      const confirmed = isConfirmed(s.id, name);
+      const rec = confirmed ? confirmations[key(s.id,name)] : null;
+      let statusLine;
+      if(confirmed){
+        const atTime = new Date(rec.at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+        const shotLink = rec.screenshot ? ` · <span class="tv-view-shot" data-url="${rec.screenshot.replace(/"/g,'&quot;')}" style="color:#1F6FB2;text-decoration:underline;cursor:pointer;">View screenshot</span>` : "";
+        statusLine = `<span style="color:var(--green);font-weight:700;">✓ Confirmed at ${atTime}</span>${shotLink}`;
+      } else {
+        statusLine = `<span style="color:var(--slate-2);">Not confirmed</span>`;
+      }
+      let assessLine = "";
+      const linkedAssessment = assessmentForSession(s.id);
+      if(linkedAssessment){
+        const attempt = await loadAssessmentAttempt(linkedAssessment.id, name);
+        if(!attempt) assessLine = `<div style="margin-top:5px;font-size:11.5px;color:var(--slate-2);">Assessment: not started</div>`;
+        else if(!attempt.submitted) assessLine = `<div style="margin-top:5px;font-size:11.5px;color:var(--amber);font-weight:700;">Assessment: in progress</div>`;
+        else if(attempt.closedOut) assessLine = `<div style="margin-top:5px;font-size:11.5px;color:var(--red);font-weight:700;">Assessment: closed out — ${attempt.score}/${attempt.total} (partial)</div>`;
+        else assessLine = `<div style="margin-top:5px;font-size:11.5px;color:var(--green);font-weight:700;">Assessment: completed — ${attempt.score}/${attempt.total}</div>`;
+      }
+      rows += `<div class="tv-row">
+        <div class="tv-meta">${s.period} · ${s.time}</div>
+        <div class="tv-title">${s.module}</div>
+        <div class="tv-fac">Facilitator: ${s.facilitator}</div>
+        ${statusLine}
+        ${assessLine}
+      </div>`;
+    }
+    html += `<div class="tv-day"><div class="tv-day-head">${dateLabel}</div>${rows}</div>`;
+  }
+  detailRoot.innerHTML = html || '<div class="empty-note">No sessions found.</div>';
+  detailRoot.querySelectorAll(".tv-view-shot").forEach(el=>{
+    el.addEventListener("click", ()=> window.open(el.dataset.url, "_blank"));
+  });
+}
+
 function renderAdmin(){
   const statsRoot = document.getElementById("adminStats");
   const overrideRoot = document.getElementById("overrideBox");
   const listRoot = document.getElementById("scheduleList");
 
   renderIdentityPanel();
+  renderAssessmentPanel();
+  renderTraineeViewer();
 
   overrideRoot.innerHTML = `<div class="override-box">
     <span><b>Manual override:</b> ${overrideOpen ? "All confirmation windows are FORCED OPEN." : "Windows follow the normal 30-minute schedule."}</span>
@@ -751,6 +1080,8 @@ function renderAll(){
     document.getElementById("overrideBox").innerHTML="";
     document.getElementById("traineeProgress").innerHTML="";
     document.getElementById("identityPanel").innerHTML="";
+    document.getElementById("assessmentPanel").innerHTML="";
+    document.getElementById("traineeViewerPanel").innerHTML="";
     renderStatusBanner();
     renderMySchedule();
   }
