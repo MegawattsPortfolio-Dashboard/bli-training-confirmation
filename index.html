@@ -224,6 +224,25 @@ const ALL = ["Akinwunmi","Emmanuel","Jeremiah","Matthew","Stephen","Tosin","Vinc
 
 // ---------- Admin access: ONLY this email can reach the Admin dashboard. EDIT THIS before deploying. ----------
 const ADMIN_EMAIL = "toyibs@basscommgroup.com";
+
+// ---------- Admin preview mode: lets Admin walk the FULL trainee flow (upload, timed assessment, lockout) ----------
+// using fake demo data only — never touches real trainee confirmations or assessment results.
+const PREVIEW_USER = "__PREVIEW__";
+const DEMO_SESSIONS = [
+  { id:"DEMO-S1", date:new Date().toISOString().slice(0,10), period:"Morning", time:"07:30–08:30",
+    module:"Preview Training Module — Sample System (for testing only)", facilitator:"Preview Facilitator",
+    trainees:[PREVIEW_USER] },
+];
+const DEMO_ASSESSMENT = {
+  id:"DEMO-A1", sessionId:"DEMO-S1", title:"Preview Assessment — Sample Questions (for testing only)", durationMin:2,
+  questions: [
+    { id:"D1", text:"This is a sample question to test the assessment flow. What is 2 + 2?", options:["3","4","5","6"], answer:1 },
+    { id:"D2", text:"Sample question 2 — which option is correct?", options:["Option A","Option B is correct","Option C","Option D"], answer:1 },
+    { id:"D3", text:"Sample question 3 — pick the right answer.", options:["Wrong","Also wrong","Correct answer","Wrong again"], answer:2 },
+  ],
+};
+let previewConfirmations = {};
+let previewAssessmentAttempts = {};
 const SESSIONS = [
  {id:"S01",date:"2026-07-13",period:"Morning",time:"07:30–08:30",module:"Fire Hydrant System — Module 1: Fundamentals, Components & Design",facilitator:"Engr Ayodeji",trainees:["Akinwunmi","Emmanuel","Jeremiah","Pamilerin"]},
  {id:"S02",date:"2026-07-13",period:"Afternoon",time:"15:30–16:30",module:"CCTV System — Module 1: Fundamentals, Components & System Architecture",facilitator:"Engr Toyib",trainees:["Matthew","Stephen","Tosin","Vincent","Pamilerin"]},
@@ -327,7 +346,7 @@ const ASSESSMENTS = [
   { id:"A-NOVEC-M1", sessionId:"S03", title:"Novec 1230 Fire Suppression System — Module 1 Assessment", durationMin:10, questions: [{"id":"Q01","text":"What type of fire suppression system is Novec 1230?","options":["Wet Pipe Sprinkler","Clean Agent Fire Suppression System","Foam System","Dry Chemical System"],"answer":1},{"id":"Q02","text":"Which NFPA standard governs clean agent fire suppression systems?","options":["NFPA 13","NFPA 72","NFPA 2001","NFPA 70"],"answer":2},{"id":"Q03","text":"Which component stores the extinguishing agent?","options":["Detector","Nozzle","Cylinder","Solenoid"],"answer":2},{"id":"Q04","text":"The primary advantage of Novec 1230 over water suppression is that it:","options":["Produces more pressure","Leaves no residue after discharge","Requires less maintenance","Uses less piping"],"answer":1},{"id":"Q05","text":"Which of the following is commonly protected by Novec 1230?","options":["Football field","Data Centre","Parking lot","Garden"],"answer":1},{"id":"Q06","text":"The discharge nozzle is designed to:","options":["Detect smoke","Distribute the extinguishing agent","Increase pressure","Monitor temperature"],"answer":1},{"id":"Q07","text":"Which device allows manual activation of the suppression system?","options":["Abort Switch","Manual Release Station","Heat Detector","Pressure Gauge"],"answer":1},{"id":"Q08","text":"The purpose of an abort switch is to:","options":["Recharge cylinders","Delay or prevent discharge while held","Silence alarms permanently","Reset detectors"],"answer":1},{"id":"Q09","text":"Before agent discharge, occupants should:","options":["Continue working","Evacuate immediately","Open windows","Turn off lighting"],"answer":1},{"id":"Q10","text":"Novec 1230 is considered safe for use around sensitive electronic equipment because it is:","options":["Water-based","Conductive","Non-conductive and residue-free","Highly corrosive"],"answer":2},{"id":"Q11","text":"During maintenance, you discover the cylinder pressure gauge is below the acceptable range. What should you do?","options":["Ignore it until the next inspection","Repaint the cylinder","Report the fault and remove the system from service until corrected","Reset the control panel"],"answer":2},{"id":"Q12","text":"A smoke detector activates in a protected room, but the Novec agent does not discharge. The system uses cross-zoning. What is the most likely explanation?","options":["The cylinder is empty","Another detector must also activate before discharge","The nozzles are blocked","The alarm is faulty"],"answer":1},{"id":"Q13","text":"A customer wants to protect a server room from fire while avoiding damage to expensive IT equipment. What should you recommend?","options":["Wet Pipe Sprinklers","Foam System","Novec 1230 Clean Agent System","Water Mist Only"],"answer":2},{"id":"Q14","text":"While inspecting a protected room, you notice storage boxes directly beneath a discharge nozzle. What is the best action?","options":["Leave them because they are not touching the nozzle","Relocate the boxes to ensure unobstructed agent discharge","Increase cylinder pressure","Install another detector"],"answer":1},{"id":"Q15","text":"During commissioning, the pre-discharge alarm sounds. What should occupants do?","options":["Wait to confirm there is a fire","Evacuate the protected room immediately","Turn off the smoke detectors","Open all windows"],"answer":1},{"id":"Q16","text":"An engineer manually releases the Novec system without first confirming everyone has evacuated. Which safety principle has been violated?","options":["Cross-zoning","Life safety and evacuation procedures","Pressure monitoring","Detector testing"],"answer":1},{"id":"Q17","text":"After completing maintenance, you forget to reconnect the cylinder release circuit. What could happen during a real fire?","options":["The agent will discharge normally","The alarm may activate, but the extinguishing agent will not discharge","The detectors will stop sensing smoke","The pressure gauge will increase"],"answer":1},{"id":"Q18","text":"During a site inspection, new cable openings have been created in the walls of a protected room. Why is this a concern?","options":["It changes room lighting","It may prevent the room from retaining the clean agent long enough to extinguish the fire","It affects smoke detector sensitivity only","It has no effect"],"answer":1},{"id":"Q19","text":"A technician suggests using Novec 1230 to protect an open warehouse with large permanent openings. How should you respond?","options":["Approve because Novec works everywhere","Recommend another suitable suppression method because clean agent systems require enclosed spaces","Increase cylinder size only","Add more nozzles"],"answer":1},{"id":"Q20","text":"During inspection, the discharge nozzle has been painted over during renovation. What should be done?","options":["Leave it because appearance has improved","Replace or clean the nozzle to restore proper discharge characteristics","Increase cylinder pressure","Disable the system"],"answer":1},{"id":"Q21","text":"The client complains that the discharge delay is \"too slow\" and wants it removed. What should you advise?","options":["Remove it immediately","Explain that the delay is a life-safety feature allowing occupants to evacuate before discharge","Disconnect the sounders instead","Reduce cylinder pressure"],"answer":1},{"id":"Q22","text":"While inspecting the system, you discover that the manual release station is blocked by a cabinet. What is the best course of action?","options":["Ignore it","Move the obstruction immediately because the manual release must remain accessible","Install another detector","Turn off the panel"],"answer":1},{"id":"Q23","text":"During a fire event, the control panel indicates \"Cylinder Low Pressure.\" What should you conclude?","options":["The system is fully operational","The extinguishing agent may not discharge effectively and immediate corrective action is required","The smoke detector has failed","The room is too cold"],"answer":1},{"id":"Q24","text":"Following an agent discharge, a supervisor wants staff to immediately re-enter the protected room to retrieve equipment. What should you recommend?","options":["Allow immediate entry","Confirm that the area is safe and follow post-discharge procedures before re-entry","Disconnect the control panel","Recharge the cylinder first"],"answer":1},{"id":"Q25","text":"While reviewing an installation, you discover that the discharge pipe has been modified without following the manufacturer's design calculations. What is the greatest concern?","options":["The pipe may look untidy","The extinguishing agent may not be distributed correctly, reducing system effectiveness","The detectors will stop working","The pressure gauge will fail"],"answer":1}] },
   { id:"A-FIREALARM-M1", sessionId:"S04", title:"Fire Alarm System — Module 1 Assessment", durationMin:10, questions: [{"id":"FA01","text":"What is the primary purpose of a Fire Alarm Control Panel (FACP)?","options":["Store fire extinguishing agent","Monitor and control the fire detection and notification system","Provide electrical power to the building","Extinguish fires automatically"],"answer":1},{"id":"FA02","text":"Which NFPA standard governs the installation of fire alarm systems?","options":["NFPA 13","NFPA 72","NFPA 2001","NFPA 101"],"answer":1},{"id":"FA03","text":"Which type of detector responds primarily to a rapid rise in temperature or a fixed temperature threshold?","options":["Smoke Detector","Heat Detector","Flame Detector","Gas Detector"],"answer":1},{"id":"FA04","text":"What is the function of a manual call point (MCP)?","options":["Automatically detect smoke","Allow a person to manually initiate a fire alarm","Silence the alarm","Test the battery backup"],"answer":1},{"id":"FA05","text":"In an addressable fire alarm system, each device has a unique:","options":["Colour code","Address/identifier","Sound pattern","Battery"],"answer":1},{"id":"FA06","text":"What is the purpose of the standby battery in a fire alarm control panel?","options":["To power the sprinkler system","To provide backup power during a mains power failure","To increase alarm volume","To charge smoke detectors"],"answer":1},{"id":"FA07","text":"Which device is used to alert occupants audibly and/or visually during a fire alarm condition?","options":["Detector","Notification appliance (sounder/strobe)","Isolator module","Junction box"],"answer":1},{"id":"FA08","text":"What is the main difference between a conventional and an addressable fire alarm system?","options":["Conventional systems use zones; addressable systems identify individual devices","Addressable systems do not need a control panel","Conventional systems are wireless","There is no difference"],"answer":0},{"id":"FA09","text":"What does \"Class A wiring\" refer to in a fire alarm circuit?","options":["A single wiring path with no redundancy","A looped wiring path providing fault tolerance","Wireless communication only","Wiring used only for power supply"],"answer":1},{"id":"FA10","text":"What is the purpose of cause-and-effect programming in a fire alarm system?","options":["To determine detector colour","To define what actions the system takes automatically when specific inputs are triggered","To calculate battery life","To set the alarm volume"],"answer":1},{"id":"FA11","text":"During a routine inspection, you find a smoke detector painted over by decorators. What is the most appropriate action?","options":["Leave it since it still looks intact","Replace or clean the detector, as paint can prevent it from sensing smoke correctly","Increase the panel sensitivity instead","Disconnect the detector permanently"],"answer":1},{"id":"FA12","text":"A fire alarm activates in Zone 3, but no smoke or fire is found after investigation. What should you do next?","options":["Ignore future alarms from that zone","Reset the system and investigate the cause of the false alarm","Disconnect Zone 3 permanently","Increase the alarm volume"],"answer":1},{"id":"FA13","text":"While testing the system, you notice the control panel displays a \"Fault\" indication on one loop. What does this most likely indicate?","options":["The system is functioning normally","There is a wiring or device fault on that loop that requires investigation","The battery is fully charged","A fire has been detected"],"answer":1},{"id":"FA14","text":"A client wants to disable the sounders in a hospital ward to avoid disturbing patients during a fire alarm. What should you advise?","options":["Approve the request immediately","Explain that notification devices are a life-safety requirement, and alternative methods (e.g. staff alert, visual notification) should be used instead of full disabling","Remove the detectors instead","Reduce the number of zones"],"answer":1},{"id":"FA15","text":"During commissioning, you find that a manual call point is installed behind a locked door. What is the concern?","options":["None, as long as the device works","Manual call points must be easily accessible at all times for emergency use","It only affects appearance","It reduces false alarms"],"answer":1},{"id":"FA16","text":"An engineer disables a zone for maintenance but forgets to re-enable it afterward. What is the risk?","options":["The system will run faster","Fires in that zone may go undetected until the zone is restored","The battery will drain faster","The panel will reset automatically"],"answer":1},{"id":"FA17","text":"A technician wants to use ordinary twin-core cable instead of fire-rated cable for fire alarm wiring. How should you respond?","options":["Approve it since it is cheaper","Advise against it, as fire alarm circuits require fire-rated/certified cable to maintain circuit integrity during a fire","Use it only for detectors, not sounders","It makes no difference"],"answer":1},{"id":"FA18","text":"During a fire drill, the notification devices in one zone did not activate although the panel showed the zone in alarm. What is the most likely cause?","options":["The devices are functioning correctly","A wiring fault or isolated notification circuit in that zone","The smoke detector is too sensitive","The battery is overcharged"],"answer":1},{"id":"FA19","text":"A building manager wants to extend the fire alarm system to a newly partitioned office area without notifying the installer. What is the main concern?","options":["It will improve system coverage automatically","Unapproved modifications may compromise detection coverage and system design compliance","It reduces the number of required detectors","It has no impact on the system"],"answer":1},{"id":"FA20","text":"While reviewing the system, you discover that the standby battery has not been replaced in over 5 years. What should you recommend?","options":["Leave it since the panel is still powered by mains","Test and likely replace the battery, as standby batteries degrade over time and may fail during a power outage","Remove the battery entirely","Increase the battery's charging voltage"],"answer":1},{"id":"FA21","text":"A false alarm keeps recurring from a smoke detector near a kitchen. What is the best long-term solution?","options":["Disconnect the detector permanently","Assess and replace with a detector type more suitable for that environment (e.g. heat detector) or relocate it appropriately","Ignore the alarms","Increase the alarm threshold on the entire system"],"answer":1},{"id":"FA22","text":"During an audit, you find that the fire alarm system has not been serviced or tested in over a year. What is the greatest concern?","options":["The panel display may look outdated","Undetected faults could mean the system fails to operate correctly during an actual fire","It only affects the warranty","It has no operational impact"],"answer":1},{"id":"FA23","text":"A supervisor insists staff should evacuate only after visually confirming a fire, ignoring the alarm. What should you advise?","options":["Support this practice to avoid false evacuations","Advise that occupants should evacuate immediately upon alarm activation per standard procedure, not wait for visual confirmation","Recommend removing the alarm sounders","Recommend increasing the false alarm threshold"],"answer":1},{"id":"FA24","text":"While inspecting the panel, you notice multiple devices in \"trouble\" status displayed simultaneously. What should be your first step?","options":["Silence the panel and take no further action","Investigate the cause promptly, as multiple faults may indicate a wiring, power, or communication issue affecting system reliability","Replace the panel immediately without diagnosis","Ignore it if no alarm is active"],"answer":1},{"id":"FA25","text":"A newly commissioned fire alarm system has not yet been linked to the building's evacuation procedure or staff training. What is the risk?","options":["None, as the system will operate independently","Occupants may not respond correctly during a real alarm if procedures and training are not in place, reducing overall life-safety effectiveness","It only affects insurance costs","It reduces maintenance requirements"],"answer":1}] },
 ];
-function assessmentForSession(sessionId){ return ASSESSMENTS.find(a=>a.sessionId===sessionId) || null; }
+function assessmentForSession(sessionId){ return ASSESSMENTS.find(a=>a.sessionId===sessionId) || (sessionId===DEMO_ASSESSMENT.sessionId ? DEMO_ASSESSMENT : null); }
 
 let overrideOpen = false;
 let currentUser = null;
@@ -346,6 +365,7 @@ async function loadConfirmations(){
 }
 async function saveConfirmationEntry(k, val){
   confirmations[k] = val;
+  if(k.endsWith("|"+PREVIEW_USER)){ previewConfirmations[k] = val; return; }
   if (LIVE) {
     try { await db.collection('sparConfirmations').doc(k).set(val); return; }
     catch(e){ console.warn("Firestore write failed, saving locally only", e); }
@@ -357,6 +377,7 @@ async function saveConfirmationEntry(k, val){
 function attemptKey(assessmentId, trainee){ return assessmentId+"|"+trainee; }
 async function loadAssessmentAttempt(assessmentId, trainee){
   const k = attemptKey(assessmentId, trainee);
+  if(trainee === PREVIEW_USER){ return previewAssessmentAttempts[k] || null; }
   if (LIVE) {
     try{ const doc = await db.collection('sparAssessments').doc(k).get(); return doc.exists ? doc.data() : null; }
     catch(e){ console.warn(e); return null; }
@@ -365,6 +386,7 @@ async function loadAssessmentAttempt(assessmentId, trainee){
 }
 async function saveAssessmentAttempt(assessmentId, trainee, val){
   const k = attemptKey(assessmentId, trainee);
+  if(trainee === PREVIEW_USER){ previewAssessmentAttempts[k] = val; return; }
   if (LIVE) {
     try{ await db.collection('sparAssessments').doc(k).set(val); return; }catch(e){ console.warn(e); }
   }
@@ -395,7 +417,7 @@ function quizBeforeUnloadHandler(e){
 }
 
 async function openAssessmentIntro(assessmentId){
-  const assessment = ASSESSMENTS.find(a=>a.id===assessmentId);
+  const assessment = ASSESSMENTS.find(a=>a.id===assessmentId) || (assessmentId===DEMO_ASSESSMENT.id ? DEMO_ASSESSMENT : null);
   if(!assessment) return;
   const existing = await loadAssessmentAttempt(assessmentId, currentUser);
   if(existing && existing.submitted){ showQuizResult(assessment, existing); return; }
@@ -728,6 +750,9 @@ let tickHandle = null;
 
 function sessionWindowState(sess){
   // returns {state: 'upcoming'|'open'|'missed'|'confirmed-locked', start, end}
+  if(sess.id && sess.id.startsWith("DEMO-")){
+    return {state:"open", start:new Date(), end:new Date(Date.now()+30*60000)};
+  }
   const {start,end} = windowRange(sess.date);
   const now = new Date();
   if(overrideOpen) return {state:"open", start, end};
@@ -738,6 +763,12 @@ function sessionWindowState(sess){
 
 function renderStatusBanner(){
   const banner = document.getElementById("statusBanner");
+  if(currentUser === PREVIEW_USER){
+    banner.innerHTML = `<div class="status-banner open">🧪 <b>Admin Preview Mode</b> — you're testing the full trainee flow with fake sample data. Nothing here affects real trainees. <span id="exitPreviewBtn" style="margin-left:10px;text-decoration:underline;cursor:pointer;font-weight:700;">Exit Preview</span></div>`;
+    const exitBtn = document.getElementById("exitPreviewBtn");
+    if(exitBtn) exitBtn.addEventListener("click", exitPreviewMode);
+    return;
+  }
   const today = todayStr();
   const todaysClassroom = SESSIONS.find(s=>s.date===today);
   if(!todaysClassroom){
@@ -768,7 +799,7 @@ let pendingFiles = {}; // sessionId -> File object, held in memory until confirm
 
 function renderMySchedule(){
   const root = document.getElementById("scheduleList");
-  const mine = SESSIONS.filter(s=>s.trainees.includes(currentUser));
+  const mine = currentUser === PREVIEW_USER ? DEMO_SESSIONS : SESSIONS.filter(s=>s.trainees.includes(currentUser));
   if(!mine.length){ root.innerHTML = `<div class="empty-note">No sessions found for you.</div>`; return; }
 
   // group by date
@@ -928,6 +959,17 @@ async function renderAssessmentPanel(){
 
 let selectedTraineeView = null;
 
+function enterPreviewMode(){
+  previewConfirmations = {};
+  previewAssessmentAttempts = {};
+  currentUser = PREVIEW_USER;
+  renderAll();
+}
+function exitPreviewMode(){
+  currentUser = "Admin";
+  renderAll();
+}
+
 async function renderTraineeViewer(){
   const root = document.getElementById("traineeViewerPanel");
   if(!root) return;
@@ -938,11 +980,16 @@ async function renderTraineeViewer(){
         <option value="">Select a trainee…</option>
         ${ALL.map(n=>`<option value="${n}">${n}</option>`).join("")}
       </select>
-      <div id="tvDetail"></div>`;
+      <div id="tvDetail"></div>
+      <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;">
+        <button id="previewModeBtn" style="padding:9px 16px;border-radius:8px;border:1.5px solid var(--orange);background:#fff;color:var(--orange);font-weight:700;font-size:12.5px;cursor:pointer;">🧪 Preview Full Trainee Experience (Test Mode)</button>
+        <p style="font-size:11px;color:var(--slate-2);margin-top:6px;">Walk through the actual upload-and-confirm flow and a sample timed assessment yourself, using fake data. Nothing here touches real trainee records.</p>
+      </div>`;
     document.getElementById("tvSelect").addEventListener("change", async (e)=>{
       selectedTraineeView = e.target.value || null;
       await renderTraineeDetail();
     });
+    document.getElementById("previewModeBtn").addEventListener("click", enterPreviewMode);
   }
   const sel = document.getElementById("tvSelect");
   if(sel && sel.value !== (selectedTraineeView||"")) sel.value = selectedTraineeView || "";
@@ -1071,7 +1118,7 @@ function renderAdmin(){
 }
 
 function renderAll(){
-  document.getElementById("whoami").textContent = currentUser==="Admin" ? "Admin — Engr. Toyib" : currentUser;
+  document.getElementById("whoami").textContent = currentUser==="Admin" ? "Admin — Engr. Toyib" : (currentUser===PREVIEW_USER ? "Preview Mode (Test Trainee)" : currentUser);
   if(currentUser==="Admin"){
     document.getElementById("statusBanner").innerHTML="";
     renderAdmin();
