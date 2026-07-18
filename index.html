@@ -986,13 +986,30 @@ async function renderTraineeViewer(){
       <div id="tvDetail"></div>
       <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;">
         <button id="previewModeBtn" style="padding:9px 16px;border-radius:8px;border:1.5px solid var(--orange);background:#fff;color:var(--orange);font-weight:700;font-size:12.5px;cursor:pointer;">🧪 Preview Full Trainee Experience (Test Mode)</button>
-        <p style="font-size:11px;color:var(--slate-2);margin-top:6px;">Walk through the actual upload-and-confirm flow and a sample timed assessment yourself, using fake data. Nothing here touches real trainee records.</p>
+        <p style="font-size:11px;color:var(--slate-2);margin-top:6px;">Walk through the actual upload-and-confirm flow and a short 3-question sample assessment, using fake data. Nothing here touches real trainee records.</p>
+      </div>
+      <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;">
+        <p style="font-weight:700;font-size:13px;color:var(--navy-2);margin-bottom:8px;">Preview a Real Assessment (full 25 questions)</p>
+        <select class="tv-select" id="realAssessSelect" style="margin-bottom:8px;">
+          <option value="">Select an assessment…</option>
+          ${ASSESSMENTS.map(a=>`<option value="${a.id}">${a.title}</option>`).join("")}
+        </select>
+        <button id="previewRealAssessBtn" style="padding:9px 16px;border-radius:8px;border:1.5px solid var(--navy-2);background:#fff;color:var(--navy-2);font-weight:700;font-size:12.5px;cursor:pointer;display:block;">Start This Assessment (as a trainee would see it)</button>
+        <p style="font-size:11px;color:var(--slate-2);margin-top:6px;">Runs the exact same 25 questions, timer, and tab-lockout as the real thing. Your attempt is never saved against any real trainee.</p>
       </div>`;
     document.getElementById("tvSelect").addEventListener("change", async (e)=>{
       selectedTraineeView = e.target.value || null;
       await renderTraineeDetail();
     });
     document.getElementById("previewModeBtn").addEventListener("click", enterPreviewMode);
+    document.getElementById("previewRealAssessBtn").addEventListener("click", async ()=>{
+      const assessId = document.getElementById("realAssessSelect").value;
+      if(!assessId) return;
+      previewAssessmentAttempts = {};
+      currentUser = PREVIEW_USER;
+      renderAll();
+      await openAssessmentIntro(assessId);
+    });
   }
   const sel = document.getElementById("tvSelect");
   if(sel && sel.value !== (selectedTraineeView||"")) sel.value = selectedTraineeView || "";
